@@ -1,0 +1,41 @@
+{
+  "description": "karpathy-jev router: identify decisions for this moment, ask Jev once, respond with proceed or revise.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/karpathy-jev/scripts/router.py\" hook",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/karpathy-jev/scripts/router.py\" hook",
+            "timeout": 25,
+            "statusMessage": "karpathy-jev: routing before_first_edit"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/karpathy-jev/scripts/router.py\" hook",
+            "timeout": 30,
+            "statusMessage": "karpathy-jev: routing before_done"
+          }
+        ]
+      }
+    ]
+  }
+}

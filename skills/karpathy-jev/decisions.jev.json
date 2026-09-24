@@ -1,0 +1,361 @@
+{
+  "_about": "Decision registry for the karpathy-jev router. identify: code picks candidate decisions for a moment from `moment` and `needs`. construct: one Jev request with the routing questions plus every candidate's questions, and only the state paths they declare. respond: code applies each decision's `gate` against the routing answers, then its thresholds; messages come from here. Thresholds are uncalibrated starting points: refit with `router.py replay`.",
+  "model": "jev-latest",
+  "source": "https://github.com/multica-ai/andrej-karpathy-skills (commit 2c60614), derived from https://x.com/karpathy/status/2015883857489522876",
+  "moments": {
+    "turn_start": {
+      "hook": "UserPromptSubmit",
+      "when": "A new user request arrives.",
+      "does": "Records the request and a git baseline. No decision."
+    },
+    "before_first_edit": {
+      "hook": "PreToolUse (Edit, Write, MultiEdit, NotebookEdit, apply_patch)",
+      "when": "Before your first file edit of a turn.",
+      "does": "Routes the edit to the decisions below."
+    },
+    "before_done": {
+      "hook": "Stop",
+      "when": "When you are about to end your turn after changing files.",
+      "does": "Routes the turn's changes to the decisions below."
+    }
+  },
+  "routing": {
+    "task_kind": {
+      "type": "choice",
+      "instructions": "What kind of task is `request`?",
+      "criteria": {
+        "bug_fix": "Something that should already work is broken.",
+        "new_behavior": "Add or change a feature or behavior.",
+        "refactor": "Change structure without changing behavior.",
+        "non_code": "A question, explanation, documentation-only, or exploration request.",
+        "other": "None of the above, or a mix."
+      }
+    }
+  },
+  "decisions": {
+    "ambiguity": {
+      "principle": "think_before_coding",
+      "moment": "before_first_edit",
+      "needs": [
+        "request"
+      ],
+      "evidence": [
+        "request",
+        "agent_said.messages_before_first_edit"
+      ],
+      "questions": {
+        "interpretations": {
+          "type": "choice",
+          "instructions": {
+            "question": "How many materially different implementations could `request` reasonably mean?",
+            "material_difference": "Two readings differ materially when they change which data is touched, what users observe, the scope of work, or its cost."
+          },
+          "criteria": {
+            "one_clear": "One obvious implementation; a competent engineer would start without asking anything.",
+            "minor_variants": "Only small details are open, and any sensible default would satisfy the requester.",
+            "several_material": "At least two readings differ materially, and choosing wrongly would mean redoing the work."
+          }
+        },
+        "assumptions_stated": {
+          "type": "noul",
+          "instructions": "Do `agent_said.messages_before_first_edit` name the interpretation of `request` the agent chose, or the assumptions it is making, or ask the user to choose?",
+          "criteria": {
+            "true": {
+              "means": "The agent says in words which reading, scope, or assumptions it is going with, or asks.",
+              "example_shape": "I'll read 'faster' as lower latency for single queries, not throughput; I'm assuming the index is the bottleneck."
+            },
+            "false": {
+              "means": "The agent starts work without saying what it assumed.",
+              "does_not_count": [
+                "Restating the request.",
+                "A generic plan such as 'review, identify issues, improve, test'."
+              ]
+            }
+          }
+        }
+      },
+      "respond": [
+        {
+          "if": "P(interpretations = several_material) >= 0.6 AND assumptions_stated <= 0.35",
+          "outcome": "block",
+          "message": "The request has several materially different readings and you have not said which one you chose. Before editing, state your interpretation and assumptions, or ask the user."
+        }
+      ],
+      "thresholds": {
+        "several_material_min_prob": 0.6,
+        "assumptions_stated_max": 0.35,
+        "review_band": [
+          0.35,
+          0.6
+        ]
+      }
+    },
+    "simplicity": {
+      "principle": "simplicity_first",
+      "moment": "before_done",
+      "needs": [
+        "hunks"
+      ],
+      "evidence": [
+        "request",
+        "observed.hunks"
+      ],
+      "questions": {
+        "speculative_feature": {
+          "type": "noul",
+          "instructions": {
+            "question": "Do the changes in `observed.hunks` add options, parameters, modes, or features that `request` did not ask for?",
+            "counts": [
+              "Flags or parameters with no caller that needs them.",
+              "Caching, retries, notifications, or configurability nobody requested."
+            ],
+            "does_not_count": [
+              "Parameters the requested behavior needs.",
+              "Tests for the requested behavior."
+            ]
+          }
+        },
+        "single_use_abstraction": {
+          "type": "noul",
+          "instructions": {
+            "question": "Do the changes in `observed.hunks` introduce a class hierarchy, interface, strategy, factory, or configuration layer that has only one concrete use?",
+            "does_not_count": "A single plain function, or an abstraction the existing code already uses."
+          }
+        },
+        "size_vs_need": {
+          "type": "score",
+          "instructions": "How much of the code added in `observed.hunks` could be removed while still fully doing what `request` asks?",
+          "criteria": [
+            "Nothing: every added line is needed for the requested behavior or its tests.",
+            "A few lines or one helper could be removed and the request would still be fully met.",
+            "Most of the added code could be removed and the request would still be fully met, for example a class hierarchy or configuration system where one short function would do."
+          ]
+        }
+      },
+      "respond": [
+        {
+          "if": "speculative_feature >= 0.7",
+          "outcome": "block",
+          "message": "The change adds options, modes, or features the request did not ask for. Remove them."
+        },
+        {
+          "if": "single_use_abstraction >= 0.7",
+          "outcome": "block",
+          "message": "The change adds an abstraction layer with a single use. Inline it."
+        },
+        {
+          "if": "size_vs_need >= 1.5",
+          "outcome": "block",
+          "message": "Most of the added code is not needed for the request. Cut it down."
+        }
+      ],
+      "thresholds": {
+        "speculative_feature_min": 0.7,
+        "single_use_abstraction_min": 0.7,
+        "size_vs_need_min": 1.5,
+        "review_band": [
+          0.5,
+          0.7
+        ]
+      }
+    },
+    "scope": {
+      "principle": "surgical_changes",
+      "moment": "before_done",
+      "needs": [
+        "hunks"
+      ],
+      "evidence": [
+        "request",
+        "observed.hunks"
+      ],
+      "per_hunk_questions": {
+        "extra_lines": {
+          "type": "noul",
+          "instructions": {
+            "question": "Does `observed.hunks[{i}].diff` change any line that `request` does not need?",
+            "counts_as_needed": [
+              "Lines that implement the requested behavior.",
+              "Tests for the requested behavior.",
+              "Removing imports, variables, or functions that this same change made unused."
+            ]
+          },
+          "criteria": {
+            "true": "At least one changed line does not trace to the request.",
+            "false": "Every changed line traces to the request."
+          }
+        },
+        "unrequested_behavior": {
+          "type": "noul",
+          "instructions": "Does `observed.hunks[{i}].diff` change validation, logic, or behavior that `request` did not ask about?"
+        },
+        "style_edits": {
+          "type": "noul",
+          "instructions": "Does `observed.hunks[{i}].diff` change formatting, quote style, whitespace, comments, docstrings, or type hints on lines the request did not otherwise require changing?"
+        },
+        "restructures_working_code": {
+          "type": "noul",
+          "instructions": "Does `observed.hunks[{i}].diff` restructure or rename working code without the request needing it?"
+        },
+        "deletes_unrelated_code": {
+          "type": "noul",
+          "instructions": "Does `observed.hunks[{i}].diff` delete pre-existing code that `request` did not ask to remove and that this change did not make unused?"
+        }
+      },
+      "respond": [
+        {
+          "if": "extra_lines >= 0.7 OR any label >= 0.8",
+          "outcome": "block",
+          "message": "{file} ({hunk}): {reasons}. Revert what the request does not need; mention unrelated issues instead of fixing them."
+        }
+      ],
+      "thresholds": {
+        "extra_lines_min": 0.7,
+        "label_min": 0.8,
+        "max_hunks": 20,
+        "review_band": [
+          0.5,
+          0.7
+        ]
+      }
+    },
+    "verification": {
+      "principle": "goal_driven_execution",
+      "moment": "before_done",
+      "needs": [
+        "changed"
+      ],
+      "gate": {
+        "route": "task_kind",
+        "option": "non_code",
+        "below": 0.6,
+        "why": "documentation-only or non-code requests need no test run"
+      },
+      "evidence": [
+        "request",
+        "agent_said.final_message",
+        "observed.commands_after_last_edit"
+      ],
+      "questions": {
+        "claims_done": {
+          "type": "noul",
+          "instructions": "Does `agent_said.final_message` claim that the task is finished, fixed, or working?"
+        },
+        "admits_unverified": {
+          "type": "noul",
+          "instructions": "Does `agent_said.final_message` state plainly that the change was not run, tested, or verified?"
+        }
+      },
+      "per_command_questions": {
+        "exercises": {
+          "type": "noul",
+          "instructions": {
+            "premise": "`observed.commands_after_last_edit[{i}].command` ran after the agent's final edit.",
+            "question": "Does that command run a test or check that exercises the behavior `request` is about?",
+            "does_not_count": [
+              "Listing files, git status, or printing file contents.",
+              "Installing dependencies.",
+              "A linter or type checker, unless the request is about lint or types."
+            ]
+          }
+        }
+      },
+      "respond": [
+        {
+          "if": "claims_done >= 0.6 AND admits_unverified < 0.5 AND no command has (exercises >= 0.6 AND result = ok)",
+          "outcome": "block",
+          "message": "You say the task is done, but no passing test or check that exercises the request ran after your last edit. Run one, or say plainly that it is unverified."
+        }
+      ],
+      "thresholds": {
+        "claims_done_min": 0.6,
+        "admits_unverified_max": 0.5,
+        "exercises_min": 0.6,
+        "max_commands": 15,
+        "review_band": [
+          0.4,
+          0.6
+        ]
+      }
+    },
+    "repro_test": {
+      "principle": "goal_driven_execution",
+      "moment": "before_done",
+      "needs": [
+        "hunks"
+      ],
+      "gate": {
+        "route": "task_kind",
+        "option": "bug_fix",
+        "at_least": 0.6,
+        "why": "only bug fixes need a reproducing test"
+      },
+      "evidence": [
+        "request",
+        "observed.hunks"
+      ],
+      "questions": {},
+      "respond": [
+        {
+          "if": "no changed file is a test file (checked in code)",
+          "outcome": "advise",
+          "message": "This is a bug fix but no test file changed. Consider a test that reproduces the bug."
+        }
+      ],
+      "thresholds": {}
+    }
+  },
+  "principles": {
+    "think_before_coding": {
+      "title": "Think before coding",
+      "rule": "Don't assume. Don't hide confusion. Surface tradeoffs.",
+      "passes_when": "Before the first edit, one or two lines name the reading you chose and what you assumed, or you ask. Unambiguous requests need nothing.",
+      "in_practice": [
+        "If multiple interpretations exist, present them; don't pick silently.",
+        "If something is unclear, stop, name what is confusing, and ask."
+      ],
+      "not_checked": [
+        "Whether a simpler approach exists and you said so.",
+        "Whether you pushed back when warranted."
+      ]
+    },
+    "simplicity_first": {
+      "title": "Simplicity first",
+      "rule": "Minimum code that solves the problem. Nothing speculative.",
+      "passes_when": "The diff contains the requested behavior and its tests, and nothing a reviewer could delete without losing something that was asked for.",
+      "in_practice": [
+        "No features beyond what was asked; no abstractions for single-use code.",
+        "No flexibility or configurability that wasn't requested.",
+        "If you write 200 lines and it could be 50, rewrite it."
+      ],
+      "not_checked": [
+        "Error handling for impossible scenarios (needs code context the diff lacks)."
+      ]
+    },
+    "surgical_changes": {
+      "title": "Surgical changes",
+      "rule": "Touch only what you must. Clean up only your own mess.",
+      "passes_when": "Every changed line traces to the request. Unrelated problems you noticed are mentioned in your message, not fixed.",
+      "in_practice": [
+        "Don't improve adjacent code, comments, or formatting; match existing style.",
+        "Remove imports and functions your change made unused; leave pre-existing dead code alone unless asked."
+      ],
+      "not_checked": [
+        "Whether you mentioned the unrelated issues you noticed."
+      ]
+    },
+    "goal_driven_execution": {
+      "title": "Goal-driven execution",
+      "rule": "Define success criteria. Loop until verified.",
+      "passes_when": "The last thing before you claim success is a passing run of a check that exercises the request, after your final edit. If you could not verify, say so plainly instead of claiming success.",
+      "in_practice": [
+        "Turn the task into a verifiable goal: 'fix the bug' becomes 'write a test that reproduces it, then make it pass'.",
+        "For multi-step work, state a brief plan with a check for each step."
+      ],
+      "not_checked": [
+        "Whether the test is a meaningful test of the fix rather than one written to pass.",
+        "Whether your plan's intermediate checks were run."
+      ]
+    }
+  }
+}
