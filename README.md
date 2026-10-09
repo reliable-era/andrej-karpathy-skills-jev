@@ -80,16 +80,23 @@ comparison. Setting of every table: 20 SWE-bench Verified tasks (seed 20260925),
 and arm, same prompt for all arms, unless the caption says otherwise. Differences of 2–3 tasks are
 within run-to-run noise (Table 6). Full data: `../eval_min/` (`result.md`, `report*.md`, `scores*.csv`).
 
+Terms used in the tables (internal artifact ids in parentheses, for tracing to `../eval_min/`):
+**Ours** = this repo's skill (`karpathy-jev`; *initial* = v1, *fixed* = v2, *fixed + pipefail* = v3);
+**Karpathy skill** = the upstream prompt-only skill; **A, B, C** = external voluntary skills
+`karpathy-jev-guidelines` v1/v2/v3 (`kjg-v1/2/3`); **D, D′** = a later external voluntary bundle and its
+mandatory-consultation revision (`v005`, `v005.1`).
+
+
 **Table 1 — Main result. SWE-bench Verified, n = 20, k = 1. Pass v2 (fixed environment).**
 
 | Harness / model | Type | Method | Resolved | False "done"¹ | Verified² | Outside-gold files³ | Size ratio³ | Jev calls | Time / task⁴ |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|
 | Claude Code / Sonnet 5 | baseline | Native | 18/20 | 2 | 1/20 | 0 | 1.16 | — | 158 s |
 | Claude Code / Sonnet 5 | prompt-only | Karpathy skill⁵ | 19/20 | 1 | 4/20 | 1 | 1.42 | — | 159 s |
-| Claude Code / Sonnet 5 | **ours, hooks** | **Karpathy-Jev** | **20/20** | **0** | **13/20** | **0** | **1.00** | 62 | 170 s |
+| Claude Code / Sonnet 5 | **ours, hooks** | **Ours (enforced by hooks)** | **20/20** | **0** | **13/20** | **0** | **1.00** | 62 | 170 s |
 | Codex / GPT-5.5 | baseline | Native | 16/20 | 4 | 20/20⁶ | 0 | 1.00 | — | 110 s |
 | Codex / GPT-5.5 | prompt-only | Karpathy skill (read 20/20) | 16/20 | 4 | 20/20⁶ | 0 | 1.00 | — | 97 s |
-| Codex / GPT-5.5 | **ours, voluntary** | **Karpathy-Jev** | **17/20** | **3** | 20/20⁶ | 0 | 1.00 | 55 | 160 s |
+| Codex / GPT-5.5 | **ours, voluntary** | **Ours (agent calls the router)** | **17/20** | **3** | 20/20⁶ | 0 | 1.00 | 55 | 160 s |
 
 ¹ Final message claims completion (blinded judge, hand-audited 20/20) and the task is not resolved.
 ² A test command with an unmasked exit 0 after the last edit (`| tail`-masked runs excluded).
@@ -98,17 +105,17 @@ within run-to-run noise (Table 6). Full data: `../eval_min/` (`result.md`, `repo
 ⁵ The model never invoked the skill in any Sonnet run (0/20); this arm is native plus a skill listing.
 ⁶ Codex ran tests unpiped in every run; the verification column does not discriminate on Codex.
 
-**Table 2 — Ablation of ours. Same setting as Table 1; the skill version changes.**
+**Table 2 — Version history of ours (not an ablation; see §Ablation design). Same setting as Table 1.**
 
 | Harness / model | Version | What changed | Resolved | False "done" | Verified | Push-backs / Jev calls | Runs ending blocked | Time / task |
 |---|---|---|---:|---:|---:|---:|---:|---:|
-| Claude Code / Sonnet 5 | v1 | first version (diff baseline failed silently, masked exit codes) | 19/20 | 1 | n/a⁷ | 1 / 39 | 0 | 192 s |
-| Claude Code / Sonnet 5 | **v2** | safe baseline, Py3.6, docs label, repro rule, 2 rounds | **20/20** | 0 | 13/20 | 32 / 62 | 10 | 170 s |
-| Claude Code / Sonnet 5 | v3 | + pipefail hook, output-summary reading | 18/20 | 2 | **17/20** | 30 / 59 | 11 | 183 s |
-| Codex / GPT-5.5 | v2 | voluntary | 17/20 | 3 | 20/20⁶ | 13 / 55 | 1 | 160 s |
-| Codex / GPT-5.5 | v3 | voluntary | 14/20 | 6 | 20/20⁶ | 10 / 43 | 1 | 134 s |
+| Claude Code / Sonnet 5 | ours, initial | diff baseline failed silently; exit codes masked by pipes | 19/20 | 1 | n/a⁷ | 1 / 39 | 0 | 192 s |
+| Claude Code / Sonnet 5 | **ours, fixed** | safe baseline, Py3.6, docs label, reproduction rule, 2 judged rounds | **20/20** | 0 | 13/20 | 32 / 62 | 10 | 170 s |
+| Claude Code / Sonnet 5 | ours, fixed + pipefail | + Bash pipefail hook, output-summary reading | 18/20 | 2 | **17/20** | 30 / 59 | 11 | 183 s |
+| Codex / GPT-5.5 | ours, fixed | voluntary routing | 17/20 | 3 | 20/20⁶ | 13 / 55 | 1 | 160 s |
+| Codex / GPT-5.5 | ours, fixed + pipefail | voluntary routing | 14/20 | 6 | 20/20⁶ | 10 / 43 | 1 | 134 s |
 
-⁷ v1's environment could not run `git stash` and its verification column counted masked runs; superseded.
+⁷ The initial version's environment could not run `git stash` and its verification column counted masked runs; superseded.
 
 **Table 3 — Adoption analysis of voluntary skills. Sonnet 5 and GPT-5.5; the condition changes.**
 *Opened* = the model loaded the skill; *router* = runs with at least one live Jev request.
@@ -116,34 +123,37 @@ within run-to-run noise (Table 6). Full data: `../eval_min/` (`result.md`, `repo
 | Harness / model | Condition | Method | Opened | Router (runs) | Live Jev calls | Resolved | Time / task |
 |---|---|---|---:|---:|---:|---:|---:|
 | Claude Code / Sonnet 5 | as delivered | prompt-only Karpathy skill | 0/20 | — | — | 19/20 | 159 s |
-| Claude Code / Sonnet 5 | as delivered | external kjg-v1 / v2 / v3 | 0 / 0 / 0 | 0 | 0 | 18 / 18 / 19 | 204–222 s |
-| Claude Code / Sonnet 5 | description names the task⁸ | external kjg-v1 / v2 / v3 | 16 / 17 / 15 | 0 | 0 | 18 / 18 / 19 | 131–136 s |
-| Claude Code / Sonnet 5 | router required by prompt⁹ | external kjg-v3 | 20/20 | 20/20 | 55 | 17/20 | 381 s |
-| Claude Code / Sonnet 5 | as delivered | external v005 | 15/20 | 0 | 0 | 17/20 | n/a |
-| Claude Code / Sonnet 5 | **hooks (ours)** | **Karpathy-Jev v2** | n/a¹⁰ | **20/20** | 62 | **20/20** | 170 s |
-| Codex / GPT-5.5 | as delivered | external kjg-v1 / v2 / v3 | 3 / 6 / 20 | 0 / 1 / 0 | 0 / 1 / 0 | 16 / 16 / 15 | 170–230 s |
-| Codex / GPT-5.5 | skill named in prompt⁹ | external kjg-v1 / v2 / v3 | 20 / 20 / 20 | 19 / 20 / 9 | 70 / 80 / 37 | 15 / 16 / 15 | 276–347 s |
-| Codex / GPT-5.5 | as delivered | external v005 | 20/20 | 0 | 0 | 15/20 | n/a |
-| Codex / GPT-5.5 | **voluntary (ours)** | **Karpathy-Jev v2** | 20/20 | 20/20 | 55 | **17/20** | 160 s |
+| Claude Code / Sonnet 5 | as delivered | external stage-router skill A / B / phase-router skill C¹² | 0 / 0 / 0 | 0 | 0 | 18 / 18 / 19 | 204–222 s |
+| Claude Code / Sonnet 5 | description names the task⁸ | external A / B / C | 16 / 17 / 15 | 0 | 0 | 18 / 18 / 19 | 131–136 s |
+| Claude Code / Sonnet 5 | router required by prompt⁹ | external C | 20/20 | 20/20 | 55 | 17/20 | 381 s |
+| Claude Code / Sonnet 5 | as delivered | external later bundle D¹² | 15/20 | 0 | 0 | 17/20 | n/a |
+| Claude Code / Sonnet 5 | **hooks (ours)** | **Ours, fixed** | n/a¹⁰ | **20/20** | 62 | **20/20** | 170 s |
+| Codex / GPT-5.5 | as delivered | external A / B / C | 3 / 6 / 20 | 0 / 1 / 0 | 0 / 1 / 0 | 16 / 16 / 15 | 170–230 s |
+| Codex / GPT-5.5 | skill named in prompt⁹ | external A / B / C | 20 / 20 / 20 | 19 / 20 / 9 | 70 / 80 / 37 | 15 / 16 / 15 | 276–347 s |
+| Codex / GPT-5.5 | as delivered | external later bundle D | 20/20 | 0 | 0 | 15/20 | n/a |
+| Codex / GPT-5.5 | **voluntary (ours)** | **Ours, fixed** | 20/20 | 20/20 | 55 | **17/20** | 160 s |
 
 ⁸ One-line change to the skill's `description` (fair arm, same prompt). ⁹ Prompt differs from the
 other arms: a separate condition, not comparable to Table 1 baselines. ¹⁰ Hooks run regardless of
-whether the model opens the skill text.
+whether the model opens the skill text. ¹² A, B: `karpathy-jev-guidelines` v1/v2, a voluntary skill whose
+router runs pre/clarify/select/post stages on an agent-written state file and rejects non-ASCII requests;
+C: its v3, a phase router (think/design/criteria/diff/finish); D: a later voluntary bundle (`v005`), and
+D′ its revision that makes Jev consultation mandatory before the first edit and at verification (`v005.1`).
 
 **Table 4 — Replication with an open-weight model. SWE-bench Verified, Claude Code / Qwen3.8-27B-FP8, n = 20.**
 
 | Type | Method | Resolved | Live Jev calls | Verified | Time / task (median) |
 |---|---|---:|---:|---:|---:|
 | baseline | Native | 17/20 | 0 | 15/20 | 1412 s |
-| **ours, hooks** | **Karpathy-Jev (v3)** | 16/20 | 80 | **19/20** | 2247 s |
+| **ours, hooks** | **Ours, fixed + pipefail** | 16/20 | 80 | **19/20** | 2247 s |
 | baseline | Native (later pass) | 16/20 | 0 | 17/20 | n/a |
-| external | v005, as delivered | 16/20 | 0 | 17/20 | +3.6 % vs native |
-| external | v005.1, consultation required | 17/20 | 27 | 20/20 (audited) | +13 % vs native |
+| external | later bundle D, as delivered | 16/20 | 0 | 17/20 | +3.6 % vs native |
+| external | D′, consultation mandatory | 17/20 | 27 | 20/20 (audited) | +13 % vs native |
 
 **Table 5 — Cross-benchmark pilot. Claude Code / Qwen3.8-27B-FP8; 3 tasks per benchmark per arm; raw grader pass.**
-The Jev arm here is the external v005.1 bundle, not ours. 36/36 attempts finished; 22 audited.
+The Jev arm here is the external bundle D′ (consultation mandatory), not ours. 36/36 attempts finished; 22 audited.
 
-| Benchmark | Native | Karpathy (prompt-only) | external v005.1 (Jev) |
+| Benchmark | Native | Karpathy (prompt-only) | external D′ (Jev) |
 |---|---:|---:|---:|
 | SWE-bench Multilingual | 3/3 | 3/3 | 3/3 |
 | SWE-bench Pro v1 | 2/3 | 1/3 | 2/3 |
@@ -160,15 +170,38 @@ pre-registered expectations.**
 | Harness | Method vs Native | Resolved won / lost / tied | Sign-test p | False "done" better / worse / tied |
 |---|---|---:|---:|---:|
 | Sonnet 5 | Karpathy skill (prompt-only) | 1 / 0 / 19 | 1.00 | 1 / 0 / 19 |
-| Sonnet 5 | **Karpathy-Jev (ours)** | **2 / 0 / 18** | 0.50 | **2 / 0 / 18** |
+| Sonnet 5 | **Ours (enforced)** | **2 / 0 / 18** | 0.50 | **2 / 0 / 18** |
 | GPT-5.5 | Karpathy skill (prompt-only) | 1 / 1 / 18 | 1.00 | 1 / 1 / 18 |
-| GPT-5.5 | **Karpathy-Jev (ours)** | **3 / 2 / 15** | 1.00 | 3 / 2 / 15 |
+| GPT-5.5 | **Ours (voluntary)** | **3 / 2 / 15** | 1.00 | 3 / 2 / 15 |
 
 | Expectation (pre-registered in `../goal.md`) | Verdict |
 |---|---|
 | E1 — no skill arm loses more than 2 tasks vs native | consistent |
 | E2 — false "done" claims ordered Jev ≤ Karpathy ≤ Native | consistent (Sonnet 0 ≤ 1 ≤ 2; Codex 3 ≤ 4 ≤ 4), on automatic labels |
 | E3 — both skill arms tighter in scope than native, Jev tightest | **inconsistent**: the prompt-only arm is looser than native on Sonnet (1 / 1.42 vs 0 / 1.16); ours is tightest |
+
+
+### Ablation design (planned; Table 2 is a version history, not an ablation)
+
+The full system has separable parts, and each can be removed while everything else stays fixed:
+
+| Ablation | What is removed | What it isolates |
+|---|---|---|
+| no-Jev router | Jev answers replaced by a deterministic judge (constant `proceed`, and separately a rule-based judge) | Jev's own contribution vs. the hook/evidence plumbing |
+| no enforcement | hooks removed; agent calls the router voluntarily | enforced vs. voluntary (the effect this repo rests on) |
+| − `repro_test` / − `verification` / − `scope` / − `simplicity` / − `ambiguity` | one decision at a time | which guideline carries the behaviour change |
+| − output tails / − pipefail hook / − masked-exit rule | one evidence source at a time | how much each piece of observability matters |
+| 1 judged round (vs 2) | re-judging the revision | the cost/benefit of the second round |
+| description fix only | router disabled, description kept | whether reading the skill text alone does anything |
+
+Protocol that would make it rigorous, unlike the passes above: a **held-out** task set never used for
+development (and ideally one that rewards the guidelines: under-specified issues, scope-bait repos);
+**k ≥ 3** attempts per cell with randomized arm order; the same prompt, model, harness and container
+image for every cell; paired bootstrap CIs per metric with a Holm correction across hypotheses; and the
+behavioural metrics (verification, false "done", scope, Jev push-backs accepted vs. argued) reported
+alongside `resolved`, since `resolved` is at ceiling for strong models on SWE-bench Verified. Power: for a
+true 10-point gain in a 20-task set, k = 3 gives roughly 60 % power; 50 tasks × 3 is the minimum for the
+contrasts above. None of this has been run; the tables report version history and comparison passes.
 
 ### Summary of findings
 
