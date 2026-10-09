@@ -78,8 +78,8 @@ yourself (any agent, voluntary). Needs `TYPESAFE_API_KEY` or `~/.karpathy-jev/ke
 - **Harnesses:** Claude Code with Sonnet 5 (hooks enforce the router) and Codex with GPT-5.5 (the agent
   calls the router itself); a Qwen3.8-27B-FP8 replication through Claude Code; and a 36-attempt pilot
   on Terminal-Bench 2.0, SWE-bench Multilingual, SWE-bench Pro and LiveCodeBench (3 tasks × 3 arms each).
-- **Arms:** `naive` (no skill), `karpathy` (the prompt-only skill), `karpathy-jev` (this repo, ★
-  below), plus external voluntary bundles evaluated for comparison: three stage/phase-router skills
+- **Arms:** `naive` (no skill), `karpathy` (the prompt-only skill), `karpathy-jev` (this repo, bold
+  in the tables), plus external voluntary bundles evaluated for comparison: three stage/phase-router skills
   (A, B, C) and a later bundle with a mandatory-consultation revision (D, D′); see the glossary in §2. Same prompt for every arm; skill installed per project; fresh
   container per run.
 - **Metrics:** `resolved` (official harness); false "done" claim = final message claims completion
@@ -93,24 +93,28 @@ Sources: [typesafe-ai/skills](https://github.com/typesafe-ai/skills) for questio
 
 ## 2. Results
 
-All numbers are official-harness `resolved` counts unless stated. Rows marked **(ours)** are this
-repo's skill; every other row is a baseline, a prompt-only skill, or an external bundle evaluated for
-comparison. Setting of every table: 20 SWE-bench Verified tasks (seed 20260925), one attempt per task
-and arm, same prompt for all arms, unless the caption says otherwise. Differences of 2–3 tasks are
-within run-to-run noise (Table 6). Full data: `../eval_min/` (`result.md`, `report*.md`, `scores*.csv`).
+### In one minute
 
-<p><b>Methods compared in the tables</b></p>
-<ul>
-<li><b>Ours</b> — this repo's skill (<code>karpathy-jev</code>). Versions: <i>initial</i> (v1), <i>fixed</i> (v2: safe git baseline, Python 3.6, docs label, reproduction rule, two judged rounds), <i>fixed + pipefail</i> (v3: adds the Bash pipefail hook and output-summary reading).</li>
-<li><b>Karpathy skill</b> — the upstream prompt-only skill; the agent judges its own compliance.</li>
-<li><b>A, B</b> — external voluntary skills (<code>karpathy-jev-guidelines</code> v1, v2): a stage router (pre/clarify/select/post) over an agent-written state file; rejects non-ASCII requests. <b>C</b> — their v3: a phase router (think/design/criteria/diff/finish).</li>
-<li><b>D</b> — a later external voluntary bundle (<code>v005</code>); <b>D′</b> — its revision that makes Jev consultation mandatory before the first edit and at verification (<code>v005.1</code>).</li>
-<li><b>Enforced</b> — Claude Code hooks call the router whether or not the model opens the skill. <b>Voluntary</b> — the agent must call the router itself.</li>
-<li><b>Resolved</b> (outcome) — the official harness applies the patch and the hidden tests pass. <b>Verified</b> (behaviour) — the agent itself ran a test after its last edit with a real exit 0. The two differ: the agent's tests are not the hidden tests, and a test piped through <code>| tail</code> reports <code>tail</code>'s exit code, so it is not an observed check. The router can act only on <i>verified</i>; it never sees the hidden tests.</li>
-</ul>
+We gave the same 20 real GitHub issues ([SWE-bench Verified](https://www.swebench.com/)) to two coding
+agents, each run three ways: **Native** (no skill), **Karpathy skill** (the rules as a prompt; the agent
+grades itself), and **Ours** (this repo; the rules are checked by Jev from evidence).
 
+1. **Solving tasks: no proven gain, no harm.** Ours resolved 20/20 vs 18/20 native on Claude Code, and
+   17/20 vs 16/20 on Codex. With 20 tasks, a 1–2 task difference is within run-to-run noise (Table 2).
+2. **Behaviour: a clear change on Claude Code.** The agent actually ran a test after its last edit in
+   13/20 runs (native: 1/20), made **no** false "done" claims (native: 2), and wrote the smallest patches.
+3. **Cost:** median time per task +8 % on Claude Code (170 s vs 158 s), +45 % on Codex (160 s vs 110 s).
+4. **Enforcement is what makes it work.** Without hooks, Claude Sonnet never even opened a voluntary
+   skill (0 of 112 runs), so prompt-only and voluntary skills behaved exactly like native (details below).
 
-<p><b>Table 1 — Main result.</b> SWE-bench Verified, 20 tasks, one attempt each (k = 1), pass v2. Same prompt for every arm.</p>
+Two words used throughout: **Resolved** = the benchmark's hidden tests pass on the agent's patch (the
+outcome). **Verified** = the agent itself ran a test after its last edit and it really exited 0 (the
+behaviour; a test piped through `| tail` doesn't count, because it reports `tail`'s exit code). The
+router can only act on *verified*; it never sees the hidden tests.
+
+### Main result
+
+<p><b>Table 1 — SWE-bench Verified, 20 tasks, one attempt each, same prompt for every arm.</b> Rows in bold are ours.</p>
 
 <table>
 <thead>
@@ -136,7 +140,28 @@ within run-to-run noise (Table 6). Full data: `../eval_min/` (`result.md`, `repo
 <sup>f</sup> Codex ran its tests unpiped in every run; the verification column does not discriminate on Codex.</p>
 </details>
 
-<p><b>Table 2 — Version history of ours</b> (not an ablation; see the ablation design below). Same setting as Table 1.</p>
+
+### Is the difference real?
+
+<p><b>Table 2 — Each method vs Native on the same tasks</b> (won = it resolved a task native did not), and the expectations written down before the experiment.</p>
+
+| Harness | Method vs Native | Resolved won / lost / tied | Sign-test p | False "done" better / worse / tied |
+|---|---|---:|---:|---:|
+| Sonnet 5 | Karpathy skill (prompt-only) | 1 / 0 / 19 | 1.00 | 1 / 0 / 19 |
+| Sonnet 5 | **Ours (enforced)** | **2 / 0 / 18** | 0.50 | **2 / 0 / 18** |
+| GPT-5.5 | Karpathy skill (prompt-only) | 1 / 1 / 18 | 1.00 | 1 / 1 / 18 |
+| GPT-5.5 | **Ours (voluntary)** | **3 / 2 / 15** | 1.00 | 3 / 2 / 15 |
+
+| Expectation (pre-registered in `../goal.md`) | Verdict |
+|---|---|
+| E1 — no skill arm loses more than 2 tasks vs native | consistent |
+| E2 — false "done" claims ordered Jev ≤ Karpathy ≤ Native | consistent (Sonnet 0 ≤ 1 ≤ 2; Codex 3 ≤ 4 ≤ 4), on automatic labels |
+| E3 — both skill arms tighter in scope than native, Jev tightest | **inconsistent**: the prompt-only arm is looser than native on Sonnet (1 / 1.42 vs 0 / 1.16); ours is tightest |
+
+<details>
+<summary><b>More results for ours</b> — version history and a replication with an open-weight model</summary>
+
+<p><b>Table 3 — Version history of ours</b> (how each fix changed the numbers; not an ablation). Same setting as Table 1.</p>
 
 <table>
 <thead>
@@ -154,7 +179,27 @@ within run-to-run noise (Table 6). Full data: `../eval_min/` (`result.md`, `repo
 
 <p><sup>g</sup> The initial version's environment could not run <code>git stash</code> and its verification column counted masked runs; superseded.</p>
 
-<p><b>Table 3 — Why voluntary skills measure as no-ops: adoption under three conditions.</b> Same tasks. A skill can only act if the model <i>opens</i> it and then <i>calls its router</i>; this table counts both (of 20 runs) for the four external voluntary skills A–D under (i) the skill as delivered, (ii) only its <code>description</code> changed to name the task, (iii) the prompt forcing its use. Ours is the reference: hooks make the opening step irrelevant.</p>
+<p><sup>g</sup> The initial version's environment could not run <code>git stash</code> and its verification column counted masked runs; superseded. <sup>f</sup> Codex ran its tests unpiped in every run, so the verification column does not discriminate on Codex.</p>
+
+<p><b>Table 4 — Replication with Qwen3.8-27B-FP8</b> through Claude Code, same 20 tasks. Rows D/D′ are an external bundle (see the next section).</p>
+
+| Type | Method | Resolved | Live Jev calls | Verified | Time / task (median) |
+|---|---|---:|---:|---:|---:|
+| baseline | Native | 17/20 | 0 | 15/20 | 1412 s |
+| **ours, hooks** | **Ours, fixed + pipefail** | 16/20 | 80 | **19/20** | 2247 s |
+| baseline | Native (later pass) | 16/20 | 0 | 17/20 | n/a |
+| external | later bundle D, as delivered | 16/20 | 0 | 17/20 | +3.6 % vs native |
+| external | D′, consultation mandatory | 17/20 | 27 | 20/20 (audited) | +13 % vs native |
+
+
+</details>
+
+<details>
+<summary><b>Not this repo: why voluntary skills did nothing</b> — four external skills (A–D) and the prompt-only skill</summary>
+
+<p>A skill can only act if the model <i>opens</i> it and then <i>calls its router</i>. We tested four external voluntary skills given to us for comparison: <b>A, B</b> = <code>karpathy-jev-guidelines</code> v1/v2 (a stage router over an agent-written state file; rejects non-ASCII requests); <b>C</b> = its v3 (a phase router); <b>D</b> = a later bundle (<code>v005</code>), <b>D′</b> = its revision that makes Jev consultation mandatory (<code>v005.1</code>). Conditions: (i) as delivered; (ii) only the skill's <code>description</code> changed to name the task<sup>h</sup>; (iii) the prompt forcing its use<sup>i</sup>.</p>
+
+<p><b>Table 5 — Adoption of voluntary skills</b> (counts of 20 runs).</p>
 
 <table>
 <thead>
@@ -183,23 +228,14 @@ within run-to-run noise (Table 6). Full data: `../eval_min/` (`result.md`, `repo
 </tbody>
 </table>
 
-<details><summary>Notes to Table 3</summary>
-<p><sup>h</sup> One-line change to the skill's <code>description</code> (a fair arm; same prompt).
-<sup>i</sup> The prompt differs from the other arms: a separate condition, not comparable to the Table 1 baselines.
-<sup>j</sup> Hooks run regardless of whether the model opens the skill text.</p>
+<p><sup>h</sup> One-line change to the skill's <code>description</code> (a fair arm; same prompt). <sup>i</sup> The prompt differs from the other arms, so this is a separate condition, not comparable to Table 1. <sup>j</sup> Hooks run whether or not the model opens the skill text. Root causes: <code>../eval_min/skill_loading_rootcause.md</code>, <code>router_nonadoption_rootcause.md</code>.</p>
+
 </details>
 
-**Table 4 — Replication with an open-weight model. SWE-bench Verified, Claude Code / Qwen3.8-27B-FP8, n = 20.**
+<details>
+<summary><b>Not this repo: cross-benchmark pilot</b> — Terminal-Bench, SWE-bench Multilingual / Pro, LiveCodeBench (ours not run)</summary>
 
-| Type | Method | Resolved | Live Jev calls | Verified | Time / task (median) |
-|---|---|---:|---:|---:|---:|
-| baseline | Native | 17/20 | 0 | 15/20 | 1412 s |
-| **ours, hooks** | **Ours, fixed + pipefail** | 16/20 | 80 | **19/20** | 2247 s |
-| baseline | Native (later pass) | 16/20 | 0 | 17/20 | n/a |
-| external | later bundle D, as delivered | 16/20 | 0 | 17/20 | +3.6 % vs native |
-| external | D′, consultation mandatory | 17/20 | 27 | 20/20 (audited) | +13 % vs native |
-
-**Table 5 — Cross-benchmark pilot, run by others without our skill.** Claude Code / Qwen3.8-27B-FP8; 3 tasks per benchmark per arm; raw grader pass. **Ours was not run on these benchmarks**; the Jev arm is the external bundle D′ (consultation mandatory). Included only as context. 36/36 attempts finished; 22 audited.
+<p><b>Table 6 — Raw grader pass, 3 tasks per benchmark per arm, Claude Code / Qwen3.8-27B-FP8.</b> The Jev arm here is the external bundle D′, not ours. 36/36 attempts finished; 22 audited.</p>
 
 | Benchmark | Native | Karpathy (prompt-only) | external D′ (Jev) |
 |---|---:|---:|---:|
@@ -213,26 +249,21 @@ within run-to-run noise (Table 6). Full data: `../eval_min/` (`result.md`, `repo
 ¹¹ Passed the grader but exceeded the solve budget; counts as 0 under the primary metric (reward 1 and
 normal completion), which is known only for the 22 audited attempts (9 primary of 12 raw).
 
-**Table 6 — Paired comparisons against the same-harness native arm (Table 1 setting) and
-pre-registered expectations.**
 
-| Harness | Method vs Native | Resolved won / lost / tied | Sign-test p | False "done" better / worse / tied |
-|---|---|---:|---:|---:|
-| Sonnet 5 | Karpathy skill (prompt-only) | 1 / 0 / 19 | 1.00 | 1 / 0 / 19 |
-| Sonnet 5 | **Ours (enforced)** | **2 / 0 / 18** | 0.50 | **2 / 0 / 18** |
-| GPT-5.5 | Karpathy skill (prompt-only) | 1 / 1 / 18 | 1.00 | 1 / 1 / 18 |
-| GPT-5.5 | **Ours (voluntary)** | **3 / 2 / 15** | 1.00 | 3 / 2 / 15 |
+¹¹ Passed the grader but exceeded the solve budget; counts as 0 under the primary metric (reward 1 and
+normal completion), which is known only for the 22 audited attempts (9 primary of 12 raw).
 
-| Expectation (pre-registered in `../goal.md`) | Verdict |
-|---|---|
-| E1 — no skill arm loses more than 2 tasks vs native | consistent |
-| E2 — false "done" claims ordered Jev ≤ Karpathy ≤ Native | consistent (Sonnet 0 ≤ 1 ≤ 2; Codex 3 ≤ 4 ≤ 4), on automatic labels |
-| E3 — both skill arms tighter in scope than native, Jev tightest | **inconsistent**: the prompt-only arm is looser than native on Sonnet (1 / 1.42 vs 0 / 1.16); ours is tightest |
+</details>
 
+<details>
+<summary><b>Limitations and the planned ablation</b></summary>
 
-### Ablation design (planned; Table 2 is a version history, not an ablation)
+**Limitations.** n = 20 tasks, one attempt each; the same 20 tasks were reused across passes, so later
+passes are optimistic; enforced Claude and voluntary Codex differ in both model and harness; Jev
+thresholds are uncalibrated; SWE-bench never exercises the ambiguity check; the 2026-10-04 audit found the
+manual judge-calibration records incomplete (`../eval_min/original_goal_report_audit.md`).
 
-The full system has separable parts, and each can be removed while everything else stays fixed:
+**Planned ablation** (not run). The full system has separable parts, and each can be removed while everything else stays fixed:
 
 | Ablation | What is removed | What it isolates |
 |---|---|---|
@@ -252,18 +283,6 @@ alongside `resolved`, since `resolved` is at ceiling for strong models on SWE-be
 true 10-point gain in a 20-task set, k = 3 gives roughly 60 % power; 50 tasks × 3 is the minimum for the
 contrasts above. None of this has been run; the tables report version history and comparison passes.
 
-### Summary of findings
+</details>
 
-1. **Task success:** no method, on any benchmark or model, changes `resolved` beyond run-to-run noise
-   (Tables 1, 4, 5, 6).
-2. **Behaviour:** the hook-enforced router (ours) is the only treatment that changes it: on Sonnet,
-   real verification 1/20 → 13–17/20, unverified "done" claims 18 → 3–7, the tightest patches, at
-   +10–20 % agent time (Tables 1, 2).
-3. **Adoption:** Sonnet-class models never open a voluntary skill under a neutral prompt; a
-   task-naming description makes them read it but not run its router; only an explicit instruction
-   produces Jev traffic, at 2–3× the time and no gain (Table 3; root causes in
-   `../eval_min/skill_loading_rootcause.md` and `router_nonadoption_rootcause.md`).
-4. **Limitations:** n = 20, k = 1; the same 20 tasks reused across passes, so later passes are
-   optimistic; enforced Claude and voluntary Codex differ in model and harness; Jev thresholds are
-   uncalibrated; ambiguity handling is never exercised by SWE-bench; the 2026-10-04 audit found the
-   manual judge-calibration records incomplete (`../eval_min/original_goal_report_audit.md`).
+Full data: `../eval_min/` (`result.md`, `report*.md`, `scores*.csv`).
