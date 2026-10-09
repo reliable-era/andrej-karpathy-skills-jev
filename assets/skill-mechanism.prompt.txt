@@ -1,0 +1,47 @@
+Use case: infographic-diagram.
+Asset type: a landscape mechanism diagram embedded in a GitHub README.
+Primary request: Explain how the karpathy-jev coding skill works and how it differs from the original Karpathy skill. Make a clean, precise technical infographic with large readable text, a light background, clear arrow direction, generous spacing, and a restrained professional palette. No logos, mascots, photorealism, ornamental graphics, or benchmark scores.
+
+Title (verbatim): "From guidelines to evidence checks"
+
+Composition: two clearly separated horizontal workflow bands. Use neutral styling for the first and a distinct accent for the second. Typography must remain legible when the image is displayed at about 900 pixels wide.
+
+FIRST BAND heading: "Original Karpathy skill"
+Four connected boxes, left to right:
+"Request" -> "Skill text" -> "Coding agent" -> "Final reply"
+Small supporting labels under Skill text: "Voluntary reading"; under Coding agent: "Agent reviews its own work".
+Keep this band simple.
+
+SECOND BAND heading: "karpathy-jev"
+Five connected boxes, left to right:
+"Request + coding agent" -> "Hooks + evidence" -> "TypeSafe Jev" -> "Router rules" -> "Verdict"
+Small supporting labels:
+Under Request + coding agent: "Edits and test commands"
+Under Hooks + evidence: "Diff, command order, recorded results"
+Under TypeSafe Jev: "Typed semantic judgments"
+Under Router rules: "Gates and thresholds in code"
+
+Below this band, two short checkpoint labels:
+"Before first edit: ambiguity"
+"Before finish: simplicity, scope, verification, reproduction"
+
+From the Verdict box, show three clearly distinct outcomes below it:
+"proceed" with explanation "Continue or finish"
+"revise" with explanation "Fix or check again"
+"unchecked" with explanation "Judgment unavailable"
+Draw a clearly directed feedback arrow from revise back to Request + coding agent. The proceed path must never point back to the judge. The unchecked explanation applies both to an unavailable judge and missing required answers.
+
+Bottom notes (verbatim):
+"Claude Code: automatic hooks. Other agents: explicit router calls."
+"At most two finish reviews. Proceed does not prove correctness."
+
+Constraints: Spell Karpathy, karpathy-jev, and TypeSafe Jev exactly. Distinguish Jev's judgments from the router's deterministic rules. Do not imply the agent never sees guidelines, that the original agent cannot test, that checks guarantee correctness, or that revision continues forever. All boxes, labels, arrows, and notes must fit without overlaps or clipped text.
+
+First targeted edit prompt:
+Edit this README mechanism diagram. Make one targeted correction: the red feedback arrow must originate from the red "revise" outcome only, and return to the "Request + coding agent" box. The existing red horizontal line appears connected to the green proceed box, which is incorrect. Remove that entire red line and its red caption. Draw a new unambiguous red connector starting at the revise card, routed below ALL three outcome cards and their description text, then left around the outer margin of the lower workflow and up to the LEFT edge of the Request + coding agent card. Its arrowhead must touch the agent card, not the "Edits and test commands" label. Give the route sufficient blank space and keep it away from every other outcome card and label. If needed add vertical space in the lower panel without shrinking the text. Label the feedback route "Revise: return to agent". Neither proceed nor unchecked may connect to this red route. Preserve all existing title, box labels, checkpoint labels, footer notes, wording, fonts, colors, green forward arrows, and the upper Original Karpathy skill panel. Keep the diagram clean and readable, with no crossing text, clipped labels, or extra arrows.
+
+Final layout edit prompt:
+Make a precise layout-only edit to this 1536-by-1024 diagram. Keep all wording and boxes unchanged except these TWO small repairs to the red revise feedback connector:
+1. Its return arrow currently ends at the "Edits and test commands" description. Delete the vertical red segment at x≈175 and that arrowhead. Route the left end of the horizontal red return line farther left, to x≈40, then vertically up along the blank margin to y≈485. At y≈485 turn right and end with a red arrowhead touching the LEFT EDGE of the green "Request + coding agent" box at x≈55. This must not cross or point to its description text.
+2. The downward red segment from revise crosses "Fix or check again". Extend ONLY the pink revise outcome box downward enough to contain its description "Fix or check again" INSIDE the box below the word "revise". The red connector should emerge from the BOTTOM of that taller pink box, then connect to the existing horizontal red return line. Keep all lettering unobstructed. Leave the green proceed and blue unchecked boxes, their descriptions, their arrows, and their positions unchanged.
+Keep the existing red label "Revise: return to agent", checkpoint boxes, footer notes, original-skill panel, typefaces, and all green forward connections unchanged. No text can overlap an arrow. The only red return path must start at revise and end at the agent BOX's left edge.
