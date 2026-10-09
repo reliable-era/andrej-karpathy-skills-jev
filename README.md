@@ -32,6 +32,18 @@ code it touches — and what does that cost in time and money?
 
 ### Design
 
+In short: Claude Code hooks call the router at fixed moments (turn start, before each shell command,
+before the first edit, before "done"); the router collects evidence, asks Jev typed questions about it,
+and code returns *proceed* or *revise*. The agent can't skip it, and can't argue past it.
+
+Install: copy `skills/karpathy-jev/` into a project's `.claude/skills/` and `hooks/hooks.json` into its
+settings (Claude Code, enforced), or install the skill folder alone and call `scripts/router.py`
+yourself (any agent, voluntary). Needs `TYPESAFE_API_KEY` or `~/.karpathy-jev/key`. Check with
+`python3 skills/karpathy-jev/scripts/router.py check`. Current skill sha256 `3bbe90eabfe29fef…`.
+
+<details>
+<summary><b>Design details</b> — hooked moments, what counts as evidence, what makes it different</summary>
+
 The agent does the work; it does not decide whether it followed the guidelines. At three fixed moments
 of a turn, code identifies which decisions apply, builds **one typed Jev request from observed
 evidence only**, and turns the answers into a verdict:
@@ -65,10 +77,7 @@ What is unique about it, relative to a prompt-only skill or a voluntary skill:
 - Standard library only; runs under Python 3.6+ inside benchmark containers; 70 offline tests plus a
   live fixture eval (`eval/run_eval.py`).
 
-Install: copy `skills/karpathy-jev/` into a project's `.claude/skills/` and `hooks/hooks.json` into its
-settings (Claude Code, enforced), or install the skill folder alone and call `scripts/router.py`
-yourself (any agent, voluntary). Needs `TYPESAFE_API_KEY` or `~/.karpathy-jev/key`. Check with
-`python3 skills/karpathy-jev/scripts/router.py check`. Current skill sha256 `3bbe90eabfe29fef…`.
+</details>
 
 ### Evaluation protocol
 
