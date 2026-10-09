@@ -1,4 +1,260 @@
-# Evaluation details
+# Evaluation Plan and Historical Results
+
+## Next Evaluation: Overview
+
+**Status: proposed, not run.** This plan expands the evaluation of this repository's `karpathy-jev`
+plugin. It does not launch jobs, change frozen earlier conditions, or mark historical audits complete.
+
+The [repository memo](../MEMO.md) records the planning, checkpoint reuse, software-hash, PR, and release
+rules for this campaign.
+
+| Question | Planned comparison |
+|---|---|
+| Does the skill help across agent harnesses? | Claude Code and Pi; Codex as an optional separate replication |
+| Does it help across models? | A pinned Qwen deployment and a pinned DeepSeek model, used in both core harnesses |
+| Does it generalize beyond repository bug fixes? | Two core benchmarks: SWE-bench Verified and Terminal-Bench 2.0 |
+| Does it generalize across programming languages? | Optional third benchmark: SWE-bench Multilingual |
+| Is the sample large enough to estimate an effect? | Nested 10%, 20%, and 30% samples; three fresh attempts per task and condition |
+
+**Harness and model are separate factors.** Pi is an agent harness. DeepSeek is a model/provider in
+this plan. If a particular DeepSeek-based agent CLI is intended, identify and pin it as an additional
+harness before freezing the matrix.
+
+[Harnesses and models](#harnesses-and-models) · [Benchmarks and sample sizes](#benchmarks-and-sample-sizes)
+· [Run budget](#run-budget) · [Execution and reporting](#execution-and-reporting)
+· [Historical results](#historical-results)
+
+## Harnesses and Models
+
+### Core Harnesses
+
+| Harness | Planned Jev integration | Readiness requirement |
+|---|---|---|
+| **Claude Code** | The bundled plugin and hooks | Confirm first-edit and finish checks run in an isolated container |
+| **Pi** | A new extension calling the same Python router | Implement and verify equivalent request, edit, command, and finish boundaries |
+| **Codex, optional** | Explicit router calls, or a separately validated adapter | Report voluntary use separately; do not equate it with enforced checks |
+
+Pi supports lifecycle and tool extensions; its documented `agent_before_settle` event is an actionable
+finish boundary. This is an integration candidate, **not an implemented adapter**. Validate continuation
+limits and tool ordering against the pinned Pi version before using it in scored runs.
+See [Pi's extension documentation](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md).
+
+### Model Backends
+
+| Backend | Purpose | What to freeze |
+|---|---|---|
+| **Qwen** | Continue the open-weight model comparison | Exact weights/revision, quantization, serving image, context limit, decoding settings, and capacity |
+| **DeepSeek** | Add a second model family | Exact API model ID, returned model/version, reasoning mode, context limit, decoding settings, and API compatibility |
+
+DeepSeek publishes model APIs; select an available model at launch rather than assuming a historical
+alias is immutable. Record any provider-side version uncertainty. See the
+[DeepSeek API documentation](https://api-docs.deepseek.com/api/create-response/).
+
+The intended core matrix is **2 harnesses × 2 model backends**. Every cell must pass a tool-call,
+streaming, transcript, and budget smoke test. Any compatibility bridge must have its source hash and
+argument/tool mapping recorded. An unsupported cell remains explicitly unrun; do not silently replace
+its model. Use the same backend and inference settings across harnesses when estimating a harness
+effect, and the same harness when estimating a model effect.
+
+## Benchmarks and Sample Sizes
+
+Use **two benchmarks by default**, with a third only if the language-generalization question and budget
+justify it. Decide whether to include the third before examining scored outcomes.
+
+| Benchmark | Role | Published release size | 10% | 20% | 30% |
+|---|---|---:|---:|---:|---:|
+| **SWE-bench Verified** | Core: real repository bug fixes | 500 | 50 | 100 | 150 |
+| **Terminal-Bench 2.0** | Core: terminal workflows and tool use | 89 | 9 | 18 | 27 |
+| **SWE-bench Multilingual** | Optional: repository fixes across languages | 300 | 30 | 60 | 90 |
+| **Two core benchmarks: distinct tasks** | | **589** | **59** | **118** | **177** |
+| **All three: distinct tasks** | | **889** | **89** | **178** | **267** |
+
+The SWE-bench counts are listed by the [benchmark maintainers](https://www.swebench.com/).
+Terminal-Bench 2.0's 89-task release is described in its
+[benchmark paper](https://arxiv.org/abs/2601.11868). Reconfirm the exact release manifests at freeze;
+if the chosen release changes, recompute the table before any scored run.
+
+### Sampling Rule
+
+```text
+N = number of tasks in the pinned benchmark release
+n10 = ceil(0.10 × N)
+n20 = ceil(0.20 × N)
+n30 = ceil(0.30 × N)
+
+Freeze one ordered sample of n30 distinct eligible tasks.
+The first n10 tasks are the 10% checkpoint.
+The first n20 tasks are the 20% checkpoint.
+All n30 tasks are the final 30% sample.
+```
+
+1. Build an exclusion list of every task used for previous development, scored runs, smoke checks,
+   fixture design, or adapter debugging. Exclude these IDs from the new sample. Record the release
+   size, excluded IDs, and eligible size; percentages above use the **full release size**.
+2. Require enough eligible tasks for the 30% sample. If there are too few, revise the release/sample
+   plan before scoring and disclose the change; do not reintroduce exposed tasks silently.
+3. Use seed `20261009`. Allocate SWE-bench Verified tasks proportionally by repository; allocate
+   Multilingual tasks by language and then repository. For Terminal-Bench, use published task
+   categories where available. Freeze rounding, small-stratum handling, and the final task order.
+4. Freeze all three nested checkpoint memberships at once. Balance the early prefixes across the
+   same strata, and verify their actual composition rather than calling an arbitrary prefix stratified.
+5. Use identical task IDs across methods and compatible harness/model cells. Keep adapter smoke
+   tasks outside every scored subset.
+
+The final target is **30% per selected benchmark**. The 10% and 20% checkpoints are cumulative progress
+reports. Do not choose the stopping fraction after seeing which checkpoint looks best. If the run stops
+early for resource reasons, report the achieved fraction and missing cells as an incomplete campaign.
+Previously completed attempts are not rerun when extending a checkpoint.
+
+Reuse each accepted task/method/harness/model/repeat attempt only when its frozen condition and
+artifact hashes match. The 20% checkpoint adds only tasks outside the 10% subset; the 30% checkpoint
+adds only tasks outside the 20% subset. A changed software or grading condition gets a new name and
+cannot inherit earlier scores as if they were generated under it.
+
+### Software Identity for Every Harness and Tool
+
+Record the full source Git commit SHA when available **and** a SHA256 of the executable or installed
+package actually used. Include reported versions, runtime and lockfile identities, adapter/tool hashes,
+container image digests, and the hashing method for multi-file packages. A symlink or launcher hash
+alone does not identify the underlying software.
+
+```json
+{
+  "component": "harness-or-tool-name",
+  "reported_version": "record-at-freeze",
+  "source_commit_sha": null,
+  "source_commit_unavailable_reason": "record-if-not-exposed",
+  "artifact_sha256": "compute-from-the-executed-artifact",
+  "artifact_scope": "record-file-or-package-and-hashing-method",
+  "runtime_version": "record-at-freeze",
+  "container_image_digest": null
+}
+```
+
+This is a record template, not a completed receipt. Resolve placeholders before launch. Unavailable
+source commits must be explained; installed artifact hashes remain required. Verify software identity
+at launch and collection, and before reusing checkpoint results. Provider-hosted model identity is
+recorded separately because client software hashes cannot pin remote weights.
+
+## Methods and Repeated Attempts
+
+### Main Comparison
+
+| Method | Added configuration |
+|---|---|
+| **Native** | No added Karpathy skill or Jev judgment |
+| **Original Karpathy** | A frozen copy of the original skill; no Jev judgment |
+| **karpathy-jev** | A frozen copy of this repository's skill, router, and validated harness adapter |
+
+Freeze the source commit and folder hashes for all added skills. The new Jev condition evaluates this
+repository's plugin; the separate v005/v005.1 bundles remain historical external conditions.
+
+Use the same user prompt, task image, resources, network policy, benchmark solve budget, and passive
+evidence collection within each comparison. Keep harness-native system prompts and tools recorded;
+they are part of the harness treatment. Extra skills and provider-specific instructions must be
+declared. Only the Jev method receives its authorized judge credential.
+
+Run **k = 3 independent fresh attempts** per task, method, and harness/model cell. Freeze repeat seeds
+where supported and record when the provider cannot honor them. Randomize method order within each
+task/repeat block and interleave harness/model blocks to reduce timing and queue effects.
+
+These are three scheduled attempts, not retries until a task passes. Report average per-attempt
+success; best-of-three is a separate diagnostic and must not replace it.
+
+### Focused Ablations
+
+After the main adapter smoke tests, preregister a separate ablation manifest and budget:
+
+- **Deterministic router:** same hooks and evidence, with constant `proceed` and a separate rule-based
+  judge, to measure what the evidence machinery contributes without Jev.
+- **Voluntary Jev:** same skill/model/harness, with automatic invocation removed, to measure adoption.
+- **Decision removal:** omit one of ambiguity, simplicity, scope, verification, or reproduction.
+- **Evidence removal:** omit output tails, pipeline handling, or masked-exit handling.
+- **One finish review:** compare with the current limit of two.
+
+Declare the subset, repeats, and hypotheses before viewing relevant rewards. These extra conditions
+are not included in the main run counts below. Clarification needs a separate small diagnostic suite
+of ambiguous requests; it is not a fourth benchmark or part of the published benchmark score.
+
+## Run Budget
+
+For the full core matrix, there are four compatible harness/model cells:
+
+```text
+main attempts = sampled tasks × 4 cells × 3 methods × 3 repeats
+              = sampled tasks × 36
+```
+
+| Cumulative checkpoint | Two core benchmarks | With optional third benchmark |
+|---|---:|---:|
+| 10% | 2,124 attempts | 3,204 attempts |
+| 20% | 4,248 attempts | 6,408 attempts |
+| 30% | 6,372 attempts | 9,612 attempts |
+
+These totals are cumulative, not additive. They exclude smoke tests, ablations, optional Codex cells,
+and diagnostic grading. Recompute the totals for the actual compatible matrix before launch.
+
+Measure smoke-run setup, solve, queue, grading, token usage, and judge calls to estimate the campaign
+cost. Freeze CPU/RAM/GPU assignments, per-endpoint concurrency, and queue policy. Queue time stays
+outside the solve budget but remains part of end-to-end time. Count failed attempts and all diagnostic
+overhead; API billing and local GPU costs are different categories. A larger sample does not by itself
+guarantee statistical power; preregister a minimum effect and power calculation for the chosen matrix.
+
+## Execution and Reporting
+
+### Before Scoring
+
+1. Pin dataset revisions, grader versions, image digests, model identities, harness/adapter sources,
+   skills, prompts, sample memberships, repeat order, solve budgets, and analysis code in a new manifest.
+2. In isolated containers, verify skill separation, real judge calls, edit/finish boundaries, pipeline
+   exit capture, revision limits, unavailable-judge handling, and the full final diff including staged
+   and untracked changes. Run positive and negative grader controls on unscored smoke tasks.
+3. Keep judge calibration separate from scoring. Freeze its rubric, manual per-ID labels, response
+   model, and acceptance criterion before inspecting calibration predictions. Missing records are
+   not counted as successful calibration. Freeze thresholds after this gate.
+4. Label completion claims using messages with task/arm/reward mappings hidden. Freeze human
+   calibration receipts and final labels before reward review; disclose any prior identity exposure.
+
+### Metrics
+
+| Metric | Reported definition |
+|---|---|
+| **Primary task success** | Grader pass **and** normal agent completion within the solve budget |
+| **Raw grader pass** | Hidden grader pass, including passing patches from timed-out or errored agents |
+| **False done** | Completion claim on a primary-unsuccessful attempt; also report the raw-grader definition separately |
+| **Strict self-verification** | A relevant behavioral check after the final repository mutation, with an observed unmasked exit 0 |
+| **Adoption** | Skill opened, router invoked, live Jev reply received, and revision acted on: separate fields |
+| **Scope** | Files outside the gold production patch and changed-line ratio where gold patches exist |
+| **Efficiency** | Setup/queue/solve/grading/end-to-end time; logical token categories; model/Jev costs where measured |
+| **Failures and retrieval** | Timeouts, process/provider/grader errors, upstream-fix retrieval, and incomplete evidence |
+
+Mark scope metrics unavailable for tasks without gold patches. Compile/build success, a test output
+summary, and hidden grader success do not establish strict agent self-verification. Keep all scheduled
+attempts in the denominator; mark genuinely unlaunched slots pending. Freeze technical-restart rules
+before launch and preserve every interrupted attempt and its costs. No quality retries.
+
+Network access can expose future upstream fixes. Use the same predeclared network policy within a
+comparison, record observed retrieval, and report a sensitivity analysis alongside the original scores;
+do not delete unfavorable or retrieved solutions after scoring. Excluding development tasks reduces
+local exposure but does not prove that public benchmark tasks were absent from model training.
+
+### Analysis and Deliverables
+
+- Report each benchmark × harness × model × method separately, including all three repeats. Do not
+  pool enforced and voluntary use. Any aggregate must state its weighting.
+- Report paired task-level success differences and 95% confidence intervals, resampling **task
+  clusters** while retaining their repeated attempts and paired methods. Repeats are not new tasks.
+- Preregister the primary comparisons and multiplicity correction. Treat checkpoint results as
+  descriptive; confirmatory analysis uses the fixed final sample and cannot select the best checkpoint.
+- Report verification, claims, adoption, scope, interventions, retrieval, failure types, and time/cost
+  alongside success. Include worked examples of improvements, regressions, and incorrect push-backs.
+- Preserve manifests, source snapshots, complete tool transcripts, final patches, judge requests and
+  responses, raw grading logs, actual exit receipts, blinded labels, audit rows, and reproducible reports.
+  Scan exported artifacts for configured secrets and archive only sanitized evidence.
+- Finish with an explicit completeness table and owned-resource cleanup receipts. Do not restart or
+  repurpose existing benchmark/model services as part of this planning change.
+
+## Historical Results
 
 These tables preserve the figures reported for earlier development runs. They cover several skill
 versions, models, and installation methods; they are not a fresh evaluation of the current checkout.
