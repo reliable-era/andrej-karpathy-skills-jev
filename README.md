@@ -4,12 +4,31 @@
 
 ### Purpose
 
-[Andrej Karpathy's four coding guidelines](https://x.com/karpathy/status/2015883857489522876) — think
-before coding, simplicity first, surgical changes, goal-driven execution — exist as a prompt-only skill
-([multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills)) in which the
-coding agent judges its own compliance. This repo asks whether moving those judgments out of the agent
-and into a **decision router backed by TypeSafe Jev** changes what the agent actually does — task
-success, false "done" claims, scope discipline — and at what cost.
+**The problem.** AI coding agents often say "done" when the fix was never tested, change code nobody
+asked them to touch, or guess at an unclear request instead of asking.
+[Andrej Karpathy's four coding guidelines](https://x.com/karpathy/status/2015883857489522876) target exactly
+these habits: *think before coding, keep it simple, change only what is needed, prove the goal is met.*
+The existing way to give them to an agent is a prompt-only skill
+([multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills)): the agent
+reads the rules and then **grades its own homework**.
+
+**The idea.** Take the grading away from the agent. At a few fixed checkpoints — before the first edit
+and before the agent says it is finished — this skill collects what actually happened (the code diff,
+the commands that ran, their real exit codes) and asks an independent judge,
+[TypeSafe Jev](https://typesafe.ai), short yes/no questions about that evidence. Code then decides:
+*proceed*, or *go back and fix this*.
+
+A concrete example: the agent fixes a bug and writes "Fixed, tests pass." The skill sees that no test ran
+after the last edit (or that the only test output went through `| tail`, which hides failures), so it
+blocks the finish and tells the agent to run the test plainly. The agent cannot talk its way past it,
+because the judge only sees evidence, not the agent's explanation.
+
+**What this repo contains.** The skill itself (`skills/karpathy-jev/`), the Claude Code hooks that run it
+automatically (`hooks/hooks.json`), tests, and the results of evaluating it on SWE-bench.
+
+**The question the evaluation answers.** Does an independent, evidence-based check change what the
+agent actually does — how many tasks it solves, how often it falsely claims "done", how much unrelated
+code it touches — and what does that cost in time and money?
 
 ### Design
 
