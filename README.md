@@ -30,6 +30,33 @@ automatically (`hooks/hooks.json`), tests, and the results of evaluating it on S
 agent actually does — how many tasks it solves, how often it falsely claims "done", how much unrelated
 code it touches — and what does that cost in time and money?
 
+### At a glance: native vs. the Karpathy skill vs. ours
+
+| Aspect | Native<br>(no skill) | Karpathy skill<br>(prompt-only) | **Ours**<br>(karpathy-jev) |
+|---|:---:|:---:|:---:|
+| Agent is given Karpathy's four guidelines | ❌ | ✅ | ✅ |
+| Takes effect even if the model never opens the skill | — | ❌ ¹ | ✅ (hooks) |
+| Compliance is judged by someone other than the agent | ❌ | ❌ | ✅ |
+| Judgment uses observed evidence (diff, real exit codes), not the agent's words | ❌ | ❌ | ✅ |
+| Blocks "done" when no test ran after the last edit | ❌ | ❌ | ✅ |
+| Detects test results hidden by `\| tail` or `; echo $?` | ❌ | ❌ | ✅ |
+| Requires a bug fix to show a test failing first, then passing | ❌ | ❌ ² | ✅ |
+| Flags changes the request did not ask for (e.g. unrequested docs) | ❌ | ❌ ² | ✅ |
+| Checks an unclear request before the first edit | ❌ | ❌ ² | ✅ ³ |
+| Enforced in Claude Code / in Codex | — | ❌ / ❌ | ✅ / ⚠️ voluntary |
+| Works with no external service or API key | ✅ | ✅ | ❌ (needs a Jev key) |
+| No extra time per task | ✅ | ✅ | ❌ (+8 % Claude Code, +45 % Codex) |
+| **Measured on Claude Code / Sonnet 5, 20 SWE-bench tasks (Table 1)** | | | |
+| Tasks resolved | 18/20 | 19/20 | **20/20** ⁴ |
+| False "done" claims | 2 | 1 | **0** |
+| Ran a real test after the last edit | 1/20 | 4/20 | **13/20** |
+
+✅ yes · ❌ no · ⚠️ partly · — not applicable.
+¹ Sonnet never opened it in any run (0/20).
+² The guideline asks for it in text, but nothing checks it.
+³ Implemented, but SWE-bench never exercised it (its issues are unambiguous).
+⁴ Differences of 1–2 tasks are within run-to-run noise at n = 20 (Table 2).
+
 ### Design
 
 In short: Claude Code hooks call the router at fixed moments (turn start, before each shell command,
