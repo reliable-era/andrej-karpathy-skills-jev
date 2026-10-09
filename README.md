@@ -60,8 +60,8 @@ yourself (any agent, voluntary). Needs `TYPESAFE_API_KEY` or `~/.karpathy-jev/ke
   calls the router itself); a Qwen3.8-27B-FP8 replication through Claude Code; and a 36-attempt pilot
   on Terminal-Bench 2.0, SWE-bench Multilingual, SWE-bench Pro and LiveCodeBench (3 tasks × 3 arms each).
 - **Arms:** `naive` (no skill), `karpathy` (the prompt-only skill), `karpathy-jev` (this repo, ★
-  below), plus external voluntary bundles evaluated for comparison (`karpathy-jev-guidelines` v1–v3,
-  a later `v005`/`v005.1` bundle). Same prompt for every arm; skill installed per project; fresh
+  below), plus external voluntary bundles evaluated for comparison: three stage/phase-router skills
+  (A, B, C) and a later bundle with a mandatory-consultation revision (D, D′); see the glossary in §2. Same prompt for every arm; skill installed per project; fresh
   container per run.
 - **Metrics:** `resolved` (official harness); false "done" claim = final message claims completion
   (blinded judge, hand-audited) ∧ not resolved; verified = a test command with an unmasked exit 0 after
