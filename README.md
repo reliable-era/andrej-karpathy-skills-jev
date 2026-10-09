@@ -32,30 +32,37 @@ code it touches — and what does that cost in time and money?
 
 ### At a glance: native vs. the Karpathy skill vs. ours
 
-| Aspect | Native<br>(no skill) | Karpathy skill<br>(prompt-only) | **Ours**<br>(karpathy-jev) |
-|---|:---:|:---:|:---:|
-| Agent is given Karpathy's four guidelines | ❌ | ✅ | ✅ |
-| Takes effect even if the model never opens the skill | — | ❌ ¹ | ✅ (hooks) |
-| Compliance is judged by someone other than the agent | ❌ | ❌ | ✅ |
-| Judgment uses observed evidence (diff, real exit codes), not the agent's words | ❌ | ❌ | ✅ |
-| Blocks "done" when no test ran after the last edit | ❌ | ❌ | ✅ |
-| Detects test results hidden by `\| tail` or `; echo $?` | ❌ | ❌ | ✅ |
-| Requires a bug fix to show a test failing first, then passing | ❌ | ❌ ² | ✅ |
-| Flags changes the request did not ask for (e.g. unrequested docs) | ❌ | ❌ ² | ✅ |
-| Checks an unclear request before the first edit | ❌ | ❌ ² | ✅ ³ |
-| Enforced in Claude Code / in Codex | — | ❌ / ❌ | ✅ / ⚠️ voluntary |
-| Works with no external service or API key | ✅ | ✅ | ❌ (needs a Jev key) |
-| No extra time per task | ✅ | ✅ | ❌ (+8 % Claude Code, +45 % Codex) |
-| **Measured on Claude Code / Sonnet 5, 20 SWE-bench tasks (Table 1)** | | | |
-| Tasks resolved | 18/20 | 19/20 | **20/20** ⁴ |
-| False "done" claims | 2 | 1 | **0** |
-| Ran a real test after the last edit | 1/20 | 4/20 | **13/20** |
+<table>
+<thead><tr><th>Aspect</th><th>Native<br>(no skill)</th><th>Karpathy skill<br>(prompt-only)</th><th>Ours<br>(karpathy-jev)</th></tr></thead>
+<tbody>
+<tr><td colspan="4"><b>A. Delivery — does the method reach the agent?</b></td></tr>
+<tr><td>Guidelines are in the agent's context</td><td>❌ no</td><td>✅ yes</td><td>✅ yes</td></tr>
+<tr><td>Active even if the model never opens the skill</td><td>—</td><td>❌ no (Sonnet opened it 0/20)</td><td>✅ yes, hooks (Claude Code); ⚠️ voluntary in Codex</td></tr>
+<tr><td colspan="4"><b>B. Compliance with each guideline — who checks it, on what?</b></td></tr>
+<tr><td>1. Think before coding (unclear request)</td><td>❌ not addressed</td><td>⚠️ asked in text; agent self-judges</td><td>✅ Jev checks the request before the first edit ¹</td></tr>
+<tr><td>2. Simplicity first</td><td>❌ not addressed</td><td>⚠️ asked in text; agent self-judges</td><td>✅ Jev judges the diff</td></tr>
+<tr><td>3. Surgical changes (scope)</td><td>❌ not addressed</td><td>⚠️ asked in text; agent self-judges</td><td>✅ Jev judges each changed hunk against the request</td></tr>
+<tr><td>4. Goal-driven (verify the result)</td><td>❌ not addressed</td><td>⚠️ asked in text; agent self-judges</td><td>✅ test after the last edit with a real exit code; bug fix must fail first, then pass</td></tr>
+<tr><td colspan="4"><b>C. Evidence — what the judgment is based on</b></td></tr>
+<tr><td>Observed diff and real exit codes</td><td>❌</td><td>❌ agent's own account</td><td>✅</td></tr>
+<tr><td>Detects results hidden by <code>| tail</code>, <code>; echo $?</code></td><td>❌</td><td>❌</td><td>✅</td></tr>
+<tr><td colspan="4"><b>D. Cost and risk</b></td></tr>
+<tr><td>External dependency</td><td>✅ none</td><td>✅ none</td><td>❌ Jev API key and network</td></tr>
+<tr><td>Median agent time per task (Sonnet)</td><td>158 s</td><td>159 s</td><td>170 s (+8 %; Codex +45 %)</td></tr>
+<tr><td>Wrong or unresolved push-backs</td><td>—</td><td>—</td><td>⚠️ 10/20 runs ended with a block still open ²</td></tr>
+<tr><td>If the judge is unreachable</td><td>—</td><td>—</td><td>fails open: verdict <code>unchecked</code>, agent continues</td></tr>
+<tr><td colspan="4"><b>E. Measured outcome — Claude Code / Sonnet 5, 20 SWE-bench Verified tasks (Table 1)</b></td></tr>
+<tr><td>Tasks resolved</td><td>18/20</td><td>19/20</td><td>20/20 (difference not significant ³)</td></tr>
+<tr><td>False "done" claims</td><td>2</td><td>1</td><td><b>0</b></td></tr>
+<tr><td>Ran a real test after the last edit</td><td>1/20</td><td>4/20</td><td><b>13/20</b></td></tr>
+<tr><td>Scope: files outside the reference fix / size ratio (median)</td><td>0 / 1.16</td><td>1 / 1.42</td><td><b>0 / 1.00</b></td></tr>
+</tbody>
+</table>
 
-✅ yes · ❌ no · ⚠️ partly · — not applicable.
-¹ Sonnet never opened it in any run (0/20).
-² The guideline asks for it in text, but nothing checks it.
-³ Implemented, but SWE-bench never exercised it (its issues are unambiguous).
-⁴ Differences of 1–2 tasks are within run-to-run noise at n = 20 (Table 2).
+<p>✅ provided / better · ⚠️ partial · ❌ not provided / worse · — not applicable.<br>
+¹ Implemented, but SWE-bench never exercised it: its issues are unambiguous.<br>
+² Either the agent argued and finished anyway, or the evidence stayed unobservable (Table 3).<br>
+³ 1–2 tasks at n = 20 is within run-to-run noise (Table 2, sign test p = 0.5).</p>
 
 ### Design
 
