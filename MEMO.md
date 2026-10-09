@@ -60,8 +60,11 @@ release snapshots; changing a reported condition requires a new condition and ex
 
 ## 5. Treat the Published Version as a Release
 
-Baseline release: **v3.1.0**, published source commit
-**261b11abfcd58447757cea8436ba7567231a80d7**. The evaluation plan and this memo are follow-up PR changes;
+Public release numbering starts at **v0.1.0**. Internal development labels do not determine the public
+release version.
+
+Baseline release: **v0.1.0**, published source commit
+**35316505ef52cde1c045b55071fe5625c4663e01**. The evaluation plan and this memo are follow-up PR changes;
 they are not part of that baseline snapshot.
 
 Keep release tags immutable. Future releases come from reviewed, merged commits, with the release tag
@@ -72,5 +75,5 @@ complete or that the proposed evaluation has run.
 For reproducible installation of the baseline release:
 
 ```text
-/plugin install karpathy-jev --marketplace reliable-era/andrej-karpathy-skills-jev#v3.1.0
+/plugin install karpathy-jev --marketplace reliable-era/andrej-karpathy-skills-jev#v0.1.0
 ```
