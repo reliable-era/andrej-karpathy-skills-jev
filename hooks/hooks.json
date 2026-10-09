@@ -23,6 +23,16 @@
             "statusMessage": "karpathy-jev: routing before_first_edit"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/karpathy-jev/scripts/router.py\" hook",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "Stop": [

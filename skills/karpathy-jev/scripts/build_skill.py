@@ -56,7 +56,7 @@ def skill_md(r):
         by_moment.setdefault(d["moment"], []).append(did)
     rows = []
     for m, spec in moments.items():
-        ds = ", ".join(f"`{x}`" for x in by_moment.get(m, [])) or "none (records the request and a git baseline)"
+        ds = ", ".join(f"`{x}`" for x in by_moment.get(m, [])) or "none"
         rows.append(f"| `{m}` | {spec['when']} | {ds} | {spec['hook']} |")
     decision_rows = []
     for did, d in r["decisions"].items():
@@ -75,9 +75,10 @@ description: >
   Karpathy's coding guidelines (think before coding, simplicity first, surgical
   changes, goal-driven execution) enforced by a decision router: at fixed moments
   in a turn, code identifies which decisions apply, constructs one TypeSafe Jev
-  request from observed evidence, and responds with proceed or revise. Use when
-  writing, reviewing, or refactoring code, especially in long agent runs where
-  self-judged "done" drifts. Hooks enforce it in Claude Code; the CLI lets any
+  request from observed evidence, and responds with proceed or revise. Use for any
+  code change in a repository, including fixing a bug, resolving a GitHub issue,
+  adding a feature, or refactoring: load it before editing code, especially in long
+  agent runs where self-judged "done" drifts. Hooks enforce it in Claude Code; the CLI lets any
   agent call the same router.
 ---
 
@@ -116,8 +117,8 @@ gate stays closed is reported as `gated_out` and its answers are ignored.
 
 - **`proceed`**: continue. Outcomes of `review` are logged for calibration and need nothing from you.
 - **`revise`**: each `block` names what fired and why. For each one, fix it, or if it is wrong, say why in
-  one line to the user. Then continue. Each moment pushes back at most once per turn, so a false alarm
-  costs one sentence. `advise` outcomes are suggestions.
+  one line to the user. Then continue. Your revision is judged once more; after that the turn ends, so a
+  false alarm costs one sentence. `advise` outcomes are suggestions.
 - **`unchecked`**: Jev was unreachable. Nothing was judged. Do not describe the work as verified by it.
 
 ## The guidelines
@@ -128,6 +129,14 @@ The exact questions, criteria, thresholds and push-back messages are in
 [references/decisions.md](references/decisions.md). How the router is built, and why, is in
 [references/design.md](references/design.md).
 
+## Method and evaluation boundary
+
+Code owns deterministic facts such as exit status, command order, and the current patch. Jev supplies
+atomic semantic judgments such as whether a hunk is relevant to the request. Questions use explicit
+evidence paths; missing evidence is skipped or unchecked, never a pass. Thresholds are uncalibrated
+starting points, and near-threshold answers remain review signals rather than claims of certainty. The
+maintainer evaluation protocol is in [references/design.md](references/design.md).
+
 ## Using the router without hooks
 
 With the plugin installed in Claude Code, hooks call the router automatically. In any other agent, call it
@@ -137,7 +146,8 @@ yourself at the same moments. This is weaker than hooks, because you choose when
 R=scripts/router.py                                   # relative to this skill's folder
 python3 $R start --request "<the user's request>"     # turn_start: records request and git baseline
 python3 $R decide before_first_edit --said "<what you told the user about your reading and assumptions>"
-python3 $R run -- <test command>                      # run checks through the router so exit codes are observed
+python3 $R run -- <failing test or script>            # bug fix: reproduce before your first edit (or after `git stash`), so the failure is observed
+python3 $R run -- <test command>                      # after your last edit: run checks through the router so exit codes are observed
 python3 $R decide before_done --final "<your final message>"
 ```
 

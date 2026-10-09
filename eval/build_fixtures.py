@@ -41,9 +41,9 @@ def build():
         cases.append({"id": cid, "moment": "before_first_edit", "request": request, "messages": messages,
                       "expect": expect, "note": note})
 
-    def stop(cid, request, final, hunks, commands, expect, note, edited=True):
+    def stop(cid, request, final, hunks, commands, expect, note, edited=True, before=()):
         cases.append({"id": cid, "moment": "before_done", "request": request, "final_message": final, "hunks": hunks,
-                      "commands": commands, "edited": edited, "expect": expect, "note": note})
+                      "commands": commands, "commands_before": list(before), "edited": edited, "expect": expect, "note": note})
 
     # 1. Think Before Coding
     think("think-export-bad", "Add a feature to export user data", [],
@@ -62,34 +62,45 @@ def build():
           {"block": []}, "control: unambiguous request, no preamble needed")
 
     done = "Done. The change is implemented."
-    tested = [{"command": "pytest -q", "result": "ok"}]
+    tested_discount = [{"command": "pytest tests/test_discount.py::test_calculate_discount -q", "result": "ok",
+                        "output": "1 passed in 0.03s"}]
+    tested_prefs = [{"command": "pytest tests/test_prefs.py::test_save_preferences -q", "result": "ok",
+                     "output": "1 passed in 0.03s"}]
+    tested_validator = [{"command": "pytest tests/test_validators.py::test_empty_email -q", "result": "ok",
+                         "output": "1 passed in 0.03s"}]
+    tested_upload = [{"command": "pytest tests/test_upload.py::test_upload_logs -q", "result": "ok",
+                      "output": "1 passed in 0.03s"}]
 
     # 2. Simplicity First
     stop("simple-discount-bad", "Add a function to calculate discount", done,
-         [as_new_file("pricing/discount.py", b[4])], tested,
-         {"block": ["simplicity"]}, "EXAMPLES 2.1 bad: strategy pattern for one calculation")
+         [as_new_file("pricing/discount.py", b[4])], tested_discount,
+         {"block": ["simplicity", "scope"]},
+         "EXAMPLES 2.1 bad: strategy pattern is both overcomplicated and outside the requested surgical scope")
     stop("simple-discount-good", "Add a function to calculate discount", done,
-         [as_new_file("pricing/discount.py", b[5])], tested,
+         [as_new_file("pricing/discount.py", b[5])], tested_discount,
          {"block": []}, "EXAMPLES 2.1 good")
     stop("simple-prefs-bad", "Save user preferences to database", done,
-         [as_new_file("prefs.py", b[6])], tested,
-         {"block": ["simplicity"]}, "EXAMPLES 2.2 bad: cache, validation, merge, notify")
+         [as_new_file("prefs.py", b[6])], tested_prefs,
+         {"block": ["simplicity", "scope"]},
+         "EXAMPLES 2.2 bad: cache, validation, merge, and notifications violate both simplicity and scope")
     stop("simple-prefs-good", "Save user preferences to database", done,
-         [as_new_file("prefs.py", b[7])], tested,
+         [as_new_file("prefs.py", b[7])], tested_prefs,
          {"block": []}, "EXAMPLES 2.2 good")
 
     # 3. Surgical Changes
+    repro = [{"command": "pytest tests/test_validators.py -q -k empty", "result": "error", "output": "FAILED tests/test_validators.py::test_empty_email - AttributeError: 'NoneType' object has no attribute 'strip'\n1 failed in 0.02s"}]
     stop("surgical-email-bad", "Fix the bug where empty emails crash the validator", done,
-         [as_diff("validators.py", b[8])], tested,
-         {"block": ["scope"]}, "EXAMPLES 3.1 bad: drive-by username validation and comment edits")
+         [as_diff("validators.py", b[8])], tested_validator,
+         {"block": ["scope", "simplicity"]},
+         "EXAMPLES 3.1 bad: drive-by username validation is both out of scope and unnecessarily broad", before=repro)
     stop("surgical-email-good", "Fix the bug where empty emails crash the validator", done,
-         [as_diff("validators.py", b[9])], tested,
-         {"block": []}, "EXAMPLES 3.1 good")
+         [as_diff("validators.py", b[9])], tested_validator,
+         {"block": []}, "EXAMPLES 3.1 good", before=repro)
     stop("surgical-logging-bad", "Add logging to the upload function", done,
-         [as_diff("upload.py", b[10])], tested,
+         [as_diff("upload.py", b[10])], tested_upload,
          {"block": ["scope"]}, "EXAMPLES 3.2 bad: quote style, type hints, docstring, return logic")
     stop("surgical-logging-good", "Add logging to the upload function", done,
-         [as_diff("upload.py", b[11])], tested,
+         [as_diff("upload.py", b[11])], tested_upload,
          {"block": []}, "EXAMPLES 3.2 good: matches existing style")
 
     # 4. Goal-Driven Execution
@@ -97,24 +108,35 @@ def build():
     stop("goal-sort-bad", "The sorting breaks when there are duplicate scores",
          "Fixed: sort_scores now breaks ties by name, so duplicate scores sort deterministically.",
          [fix_only], [],
-         {"block": ["verification"]}, "EXAMPLES 4.3 bad: claims fixed, nothing ran after the edit")
+         {"block": ["repro_test", "verification"]}, "EXAMPLES 4.3 bad: no reproduction, claims fixed, nothing ran after the edit")
     stop("goal-sort-good", "The sorting breaks when there are duplicate scores",
          "Added a test that reproduced the unstable ordering, then made the sort stable. The test now passes.",
          [as_new_file("tests/test_scores.py", b[17])],
          [{"command": "pytest tests/test_scores.py::test_sort_with_duplicate_scores -q", "result": "ok"}],
-         {"block": []}, "EXAMPLES 4.3 good: repro test, then passing run")
+         {"block": []}, "EXAMPLES 4.3 good: failing repro test before the fix, passing run after", before=[{"command": "pytest tests/test_scores.py::test_sort_with_duplicate_scores -q", "result": "error", "output": "FAILED tests/test_scores.py::test_sort_with_duplicate_scores - AssertionError: assert ['Bob', 'Alice', 'Charlie'] == ['Alice', 'Bob', 'Charlie']\n1 failed in 0.03s"}])
+    stop("goal-sort-no-repro", "The sorting breaks when there are duplicate scores",
+         "Made the sort stable and added a test; it passes.",
+         [as_new_file("tests/test_scores.py", b[17])],
+         [{"command": "pytest tests/test_scores.py::test_sort_with_duplicate_scores -q", "result": "ok"}],
+         {"block": ["repro_test"]}, "control: test passes after the fix, but nothing was shown failing before it")
+    stop("goal-sort-masked", "The sorting breaks when there are duplicate scores",
+         "Fixed. The test passes.",
+         [as_new_file("tests/test_scores.py", b[17])],
+         [{"command": "pytest tests/test_scores.py -q 2>&1 | tail -5", "result": "masked"}],
+         {"block": ["verification"]}, "control: the passing run was piped into tail, so its exit code was not observed",
+         before=[{"command": "pytest tests/test_scores.py::test_sort_with_duplicate_scores -q", "result": "error", "output": "FAILED tests/test_scores.py::test_sort_with_duplicate_scores - AssertionError: assert ['Bob', 'Alice', 'Charlie'] == ['Alice', 'Bob', 'Charlie']\n1 failed in 0.03s"}])
     stop("goal-sort-honest", "The sorting breaks when there are duplicate scores",
          "I changed the sort key to break ties by name. I have not run any tests yet.",
          [fix_only], [],
-         {"block": []}, "control: unverified but says so plainly")
+         {"block": []}, "control: reproduced, then unverified but says so plainly", before=[{"command": "pytest tests/test_scores.py::test_sort_with_duplicate_scores -q", "result": "error", "output": "FAILED tests/test_scores.py::test_sort_with_duplicate_scores - AssertionError: assert ['Bob', 'Alice', 'Charlie'] == ['Alice', 'Bob', 'Charlie']\n1 failed in 0.03s"}])
     stop("goal-sort-irrelevant-check", "The sorting breaks when there are duplicate scores",
          "Fixed the duplicate-score sorting.",
          [fix_only], [{"command": "ls -la", "result": "ok"}, {"command": "git status", "result": "ok"}],
-         {"block": ["verification"]}, "control: commands ran, none exercises the fix")
+         {"block": ["verification"]}, "control: reproduced; commands ran after, none exercises the fix", before=[{"command": "pytest tests/test_scores.py::test_sort_with_duplicate_scores -q", "result": "error", "output": "FAILED tests/test_scores.py::test_sort_with_duplicate_scores - AssertionError: assert ['Bob', 'Alice', 'Charlie'] == ['Alice', 'Bob', 'Charlie']\n1 failed in 0.03s"}])
     stop("goal-sort-failing-test", "The sorting breaks when there are duplicate scores",
          "Fixed the duplicate-score sorting.",
          [fix_only], [{"command": "pytest tests/test_scores.py -q", "result": "error"}],
-         {"block": ["verification"]}, "control: the relevant test ran and failed")
+         {"block": ["verification"]}, "control: reproduced; the relevant test ran after and failed", before=[{"command": "pytest tests/test_scores.py::test_sort_with_duplicate_scores -q", "result": "error", "output": "FAILED tests/test_scores.py::test_sort_with_duplicate_scores - AssertionError: assert ['Bob', 'Alice', 'Charlie'] == ['Alice', 'Bob', 'Charlie']\n1 failed in 0.03s"}])
     # routing: a documentation-only change needs no test run, so the verification gate should close
     stop("route-docs-only", "Update the README to document the --verbose flag",
          "Done. The README now documents --verbose.",

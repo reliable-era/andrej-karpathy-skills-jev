@@ -72,3 +72,50 @@ A new moment additionally needs a hook mapping in `hook_main` and an agent-mode 
 - **Cost grows with the diff.** Five Nouls per hunk, capped at 20 hunks. Measure latency and token cost
   before raising the cap.
 - **Language.** Jev is English-first; the docs report lower accuracy for other languages.
+
+## Method and evaluation boundary
+
+Code owns deterministic facts such as exit status, command order, and the current patch. Jev supplies
+atomic semantic judgments such as whether a hunk is relevant to the request. Questions use explicit
+evidence paths; missing evidence is skipped or unchecked, never a pass. Thresholds are uncalibrated
+starting points, and near-threshold answers remain review signals rather than claims of certainty. This
+follows the supplied TypeSafe guidance in `jev-docs/concepts/how-to-build-with-system-one.md`,
+`jev-docs/concepts/state.md`, and `jev-docs/model-jaggedness/jev-1.13.md`.
+
+Score criteria describe broad situations. Thresholding a returned Score expectation is supported, but do
+not treat it as exact arithmetic or reconstruct a precise quantity from the levels.
+
+The bundled fixtures are for development and calibration only. A benchmark revision should use
+a new pre-registered held-out manifest and output, preserve historical artifacts, and run every arm with
+the same runtime, pinned model, task budget, and environment. Resolved tasks are the primary outcome;
+intervention correctness, false-success prevention, verification behavior, and runtime are secondary.
+Include a deterministic-router ablation to separate harness plumbing from Jev's contribution. Keep the
+router interpreter compatible with the harness runtime and separate from the task environment.
+
+## Bounded fixture validation
+
+On 2026-09-25, the 23 development fixtures were run once with the pinned `jev-1.13.0` model. All 23
+requests completed and the response reported `jev-1.13.0`; the raw output is preserved in
+[`eval/results_jev_1_13_0_20260925T071057.jsonl`](../../../eval/results_jev_1_13_0_20260925T071057.jsonl).
+The fixture-level expected block-label sets matched exactly for 15/23 cases. This is a calibration result,
+not evidence of a SWE improvement or behavioral superiority.
+
+The eight mismatches expose evaluation limitations. Four clean fixtures supplied only a generic `pytest -q`
+command, without a test node, output, or changed-path linkage; verification therefore lacked evidence that
+the command exercised the request. Four bad fixtures expected one principle, although simplicity, scope, and
+verification are independent decisions and can legitimately produce multiple blocks. Future calibration
+manifests should label each decision independently, include positive and negative cases with realistic command,
+path, and output evidence, and report per-decision TP/FP/FN plus `review`, `advise`, `gated_out`, and
+`skipped` outcomes. Overall exact-label-set matching must not be the sole metric; use a held-out manifest and
+keep historical SWE results unchanged. When comparing arms within a harness, hold model, runtime, task
+budget, and environment equal; this does not imply equality between Claude and Codex harnesses. A pinned
+response model establishes provenance, not an improvement claim.
+
+The fixture evidence was then tightened in a revised development manifest: clean cases use targeted test
+commands with output, and bad cases label independently supported simplicity and scope violations where the
+source diff contains both. The revised 23-case run matched all 23 expected label sets, with no API errors or
+unchecked responses, using response model `jev-1.13.0`; its fixture SHA-256 is
+`b0d085f32442d49ec294f3bcd05b8355488ad225d8df89de2fea86f3b29cd114`. The raw output is preserved in
+[`eval/results_jev_1_13_0_revised_20260925T074106.jsonl`](../../../eval/results_jev_1_13_0_revised_20260925T074106.jsonl).
+This supersedes neither the earlier 15/23 result nor any historical benchmark artifact: the two runs use
+different development fixture versions, and neither supports a SWE performance claim.

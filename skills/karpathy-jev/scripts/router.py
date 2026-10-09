@@ -25,6 +25,7 @@ import argparse
 import copy
 import hashlib
 import json
+import math
 import os
 import sys
 import time
@@ -60,18 +61,22 @@ def fill(template, i):
 
 def empty_evidence():
     return {"request": None, "messages_before_first_edit": [], "final_message": "", "hunks": [],
-            "commands_after_last_edit": [], "edited": False}
+            "commands_on_unfixed_code": [], "commands_after_last_edit": [], "edited": False}
 
 
 def full_state(reg, e):
     d = reg["decisions"]
     max_hunks = d["scope"]["thresholds"].get("max_hunks", 20)
     max_cmds = d["verification"]["thresholds"].get("max_commands", 15)
+    max_pre = d["repro_test"]["thresholds"].get("max_commands", 15)
+    cmds = lambda cs: [dict({"output": ""}, **c) for c in cs]  # noqa: E731  every command carries its output tail
     return {
         "request": e["request"],
         "agent_said": {"messages_before_first_edit": e["messages_before_first_edit"],
                        "final_message": e["final_message"]},
-        "observed": {"hunks": e["hunks"][:max_hunks], "commands_after_last_edit": e["commands_after_last_edit"][:max_cmds]},
+        "observed": {"hunks": e["hunks"][:max_hunks],
+                     "commands_on_unfixed_code": cmds(e["commands_on_unfixed_code"][-max_pre:]),
+                     "commands_after_last_edit": cmds(e["commands_after_last_edit"][:max_cmds])},
     }
 
 
@@ -119,10 +124,10 @@ def construct(reg, plan, e):
         questions[qid("route", route)] = copy.deepcopy(reg["routing"][route])
         paths.add("request")
     hunks = full["observed"]["hunks"]
-    commands = full["observed"]["commands_after_last_edit"]
     for did in plan["decisions"]:
         d = reg["decisions"][did]
         paths.update(d["evidence"])
+        commands = _get(full, d.get("commands_from", "observed.commands_after_last_edit"))
         for name, q in d.get("questions", {}).items():
             questions[qid(did, name)] = copy.deepcopy(q)
         for i in range(len(hunks)):
@@ -156,6 +161,68 @@ def gate(reg, did, answers):
     if "at_least" in g:
         return p >= g["at_least"], p
     return p < g["below"], p
+
+
+def _answer_valid(q, answer):
+    if not isinstance(answer, dict) or answer.get("type") != q.get("type"):
+        return False
+    if q["type"] == "noul":
+        v = answer.get("noul")
+        return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) and 0 <= v <= 1
+    if q["type"] == "score":
+        v = answer.get("score")
+        return (isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+                and -0.5 <= v <= len(q["criteria"]) - 0.5)
+    choice = answer.get("choice")
+    probs = answer.get("probabilities")
+    if not (choice in q.get("criteria", {}) and isinstance(probs, dict) and set(probs) == set(q["criteria"])
+            and all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) and 0 <= v <= 1
+                    for v in probs.values())):
+        return False
+    # Same tolerances as hermes-jev-skills jevkit/client.py: mass sums to one, the choice is the argmax.
+    return abs(sum(probs.values()) - 1) <= 0.01 + 1e-12 and probs[choice] >= max(probs.values()) - 1e-9
+
+
+def _expected_questions(reg, plan, state):
+    expected = {}
+    for route in plan["routes"]:
+        expected[qid("route", route)] = reg["routing"][route]
+    hunks = state.get("observed", {}).get("hunks", [])
+    for did in plan["decisions"]:
+        d = reg["decisions"][did]
+        for name, q in d.get("questions", {}).items():
+            expected[qid(did, name)] = q
+        for i in range(len(hunks)):
+            for name, q in d.get("per_hunk_questions", {}).items():
+                expected[qid(did, f"h{i}", name)] = fill(q, i)
+        path = d.get("commands_from", "observed.commands_after_last_edit")
+        commands = state
+        for part in path.split("."):
+            if not isinstance(commands, dict) or part not in commands:
+                commands = []
+                break
+            commands = commands[part]
+        for i in range(len(commands)):
+            for name, q in d.get("per_command_questions", {}).items():
+                expected[qid(did, f"c{i}", name)] = fill(q, i)
+    return expected
+
+
+def _missing_answers(reg, plan, answers, state):
+    answers = answers or {}
+    expected = _expected_questions(reg, plan, state)
+    missing = [key for key, q in expected.items()
+               if key.startswith("route" + SEP) or _gate_open_for_validation(reg, plan, key, answers)
+               if not _answer_valid(q, answers.get(key))]
+    return missing
+
+
+def _gate_open_for_validation(reg, plan, key, answers):
+    did = key.split(SEP, 1)[0]
+    if did not in plan["decisions"]:
+        return True
+    opened, _ = gate(reg, did, answers)
+    return opened
 
 
 def _r(v):
@@ -234,10 +301,15 @@ def respond_verification(d, a, state):
 
 
 def respond_repro_test(d, a, state):
+    th, res = d["thresholds"], []
+    before = state["observed"]["commands_on_unfixed_code"]
+    failing = [i for i, c in enumerate(before) if c["result"] == "error"]
+    if not any((jev.noul(a, qid(f"c{i}", "reproduces")) or 0) >= th["reproduces_min"] for i in failing):
+        res.append(out("block", d["respond"][0]["message"], failing_runs_on_unfixed_code=len(failing)))
     hunks = state["observed"]["hunks"]
     if hunks and not any(ev.TEST_PATH.search(h["file"]) for h in hunks):
-        return [out("advise", d["respond"][0]["message"])]
-    return []
+        res.append(out("advise", d["respond"][1]["message"]))
+    return res
 
 
 RESPONDERS = {"ambiguity": respond_ambiguity, "simplicity": respond_simplicity, "scope": respond_scope,
@@ -245,7 +317,17 @@ RESPONDERS = {"ambiguity": respond_ambiguity, "simplicity": respond_simplicity, 
 
 
 def respond(reg, plan, answers, state):
+    answers = answers or {}
+    expected = _expected_questions(reg, plan, state)
+    missing_routes = [key for key, q in expected.items()
+                      if key.startswith("route" + SEP) and not _answer_valid(q, answers.get(key))]
+    if missing_routes:
+        error = "missing or malformed Jev answers: " + ", ".join(missing_routes)
+        return {"moment": plan["moment"], "verdict": "unchecked", "error": error,
+                "results": [{"id": "routing", "principle": "goal_driven_execution",
+                             **out("unchecked", error)}]}
     results = []
+    incomplete = []
     for did in plan["decisions"]:
         d = reg["decisions"][did]
         base = {"id": did, "principle": d["principle"]}
@@ -253,21 +335,40 @@ def respond(reg, plan, answers, state):
         if not opened:
             results.append({**base, **out("gated_out", d["gate"]["why"], **{d["gate"]["option"]: p})})
             continue
+        missing = [key for key, q in expected.items()
+                   if key.startswith(did + SEP) and not _answer_valid(q, answers.get(key))]
+        if missing:
+            incomplete.extend(missing)
+            results.append({**base, **out("unchecked", "missing or malformed Jev answers: " + ", ".join(missing))})
+            continue
         outs = RESPONDERS[did](d, view(answers, did), state)
         results += [{**base, **o} for o in outs] or [{**base, **out("pass")}]
     for s in plan["skipped"]:
         d = reg["decisions"][s["id"]]
         results.append({"id": s["id"], "principle": d["principle"], **out("skipped", s["why"])})
-    verdict = "revise" if any(r["outcome"] == "block" for r in results) else "proceed"
-    return {"moment": plan["moment"], "verdict": verdict, "results": results}
+    verdict = "revise" if any(r["outcome"] == "block" for r in results) else "unchecked" if incomplete else "proceed"
+    response = {"moment": plan["moment"], "verdict": verdict, "results": results}
+    if incomplete:
+        response["error"] = "missing or malformed Jev answers: " + ", ".join(incomplete)
+    return response
 
 
 def render(response):
     lines = ["karpathy-jev (Jev judged observed evidence; code decided):"]
     lines += [f"- [{r['principle']}] {r['message']}" for r in response["results"] if r["outcome"] == "block"]
     lines += [f"- [{r['principle']}, advice] {r['message']}" for r in response["results"] if r["outcome"] == "advise"]
-    lines.append("Fix what applies. If a point is wrong, say why in one line, then continue.")
+    if response["verdict"] == "unchecked":
+        lines.append(f"- Jev was unreachable ({response.get('error', '')}); nothing was judged. Do not call the work verified by it.")
+    skipped = [f"{r['id']} ({r['message']})" for r in response["results"] if r["outcome"] == "skipped"]
+    if skipped:
+        lines.append("- not judged, no evidence: " + ", ".join(skipped))
+    if response["verdict"] == "revise":
+        lines.append("Fix what applies. If a point is wrong, say why in one line, then continue.")
     return "\n".join(lines)
+
+
+def has_news(response):
+    return response["verdict"] in ("revise", "unchecked") or any(r["outcome"] in ("advise", "skipped") for r in response["results"])
 
 
 # --- run a moment end to end, with logging ---
@@ -296,6 +397,7 @@ def route(reg, moment, e, session=None, dry=False):
     else:
         try:
             answers = jev.ask(state, questions, os.environ.get("KARPATHY_JEV_MODEL", reg.get("model", "jev-latest")))
+            entry["response_model"] = jev.last_response_model
         except Exception as err:  # fail open
             response = {"moment": moment, "verdict": "unchecked", "error": str(err)[:300], "results": []}
             log({**entry, "response": response, "latency_s": round(time.time() - t0, 3)})
@@ -345,20 +447,25 @@ def save_session(sid, data):
 def start_turn(sid, cwd, request):
     try:
         snap = ev.snapshot(cwd)
-    except Exception:
+    except Exception as err:
+        log({"ts": time.time(), "moment": "evidence_error", "cwd": cwd, "error": repr(err)[:300]})
         snap = None
     save_session(sid, {"user_request": (request or "")[: ev.MAX_MSG_CHARS], "baseline": snap,
-                       "first_edit_routed": False, "cwd": cwd, "ts": time.time()})
+                       "first_edit_routed": False, "done_rounds": 0, "cwd": cwd, "ts": time.time()})
 
 
 def _hunks(cwd, sess):
     try:
         return ev.turn_hunks(cwd, sess.get("baseline"))
-    except Exception:
+    except Exception as err:  # fail open, but say why the diff is missing
+        log({"ts": time.time(), "moment": "evidence_error", "cwd": cwd, "error": repr(err)[:300]})
         return []
 
 
 # --- hook mode (enforced) ---
+
+MAX_DONE_ROUNDS = 2  # before_done judgments per turn: the revision after a push-back is judged once more
+
 
 def hook_main(hook, reg):
     event = hook.get("hook_event_name")
@@ -367,6 +474,17 @@ def hook_main(hook, reg):
         start_turn(sid, cwd, hook.get("prompt"))
         return 0, ""
     if event == "PreToolUse":
+        if hook.get("tool_name") in ev.COMMAND_TOOLS:  # make piped checks report their own exit status
+            tool_input = hook.get("tool_input") or {}
+            cmd = tool_input.get("command") or ""
+            if isinstance(cmd, str) and ev.with_pipefail(cmd) != cmd:
+                sess = load_session(sid)
+                if not sess.get("pipefail"):
+                    sess["pipefail"] = True  # from here on, a piped command's status is the check's own
+                    save_session(sid, sess)
+                return 0, "", json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse",
+                                                                 "updatedInput": dict(tool_input, command=ev.with_pipefail(cmd))}})
+            return 0, ""
         if hook.get("tool_name") not in ev.EDIT_TOOLS:
             return 0, ""
         sess = load_session(sid)
@@ -379,15 +497,20 @@ def hook_main(hook, reg):
              "messages_before_first_edit": turn["messages_before_first_edit"]}
         response = route(reg, "before_first_edit", e, sid)
     elif event == "Stop":
-        if hook.get("stop_hook_active"):
-            return 0, ""
         sess = load_session(sid)
-        turn = ev.read_turn(hook.get("transcript_path"))
+        if not hook.get("stop_hook_active"):
+            sess["done_rounds"] = 0
+        if sess.get("done_rounds", 0) >= MAX_DONE_ROUNDS:
+            return 0, ""
+        turn = ev.read_turn(hook.get("transcript_path"), pipefail=bool(sess.get("pipefail")))
         e = {**empty_evidence(), "request": sess.get("user_request") or turn["request"],
              "final_message": turn["final_message"], "hunks": _hunks(cwd, sess),
+             "commands_on_unfixed_code": turn["commands_on_unfixed_code"],
              "commands_after_last_edit": turn["commands_after_last_edit"], "edited": turn["edited"]}
         if not facts(e)["changed"]:
             return 0, ""
+        sess["done_rounds"] = sess.get("done_rounds", 0) + 1
+        save_session(sid, sess)
         response = route(reg, "before_done", e, sid)
     else:
         return 0, ""
@@ -412,6 +535,7 @@ def agent_decide(reg, moment, args):
         hunks = _hunks(cwd, sess)
         runs = os.path.join(jev.home(), "runs.jsonl")
         e.update(final_message=args.final or "", hunks=hunks, edited=bool(hunks),
+                 commands_on_unfixed_code=ev.runs_on_unfixed_code(runs),
                  commands_after_last_edit=ev.runs_after_last_edit(runs, cwd, hunks))
     else:
         raise SystemExit(f"unknown moment {moment!r}; choose from {sorted(reg['moments'])}")
@@ -420,7 +544,8 @@ def agent_decide(reg, moment, args):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="router.py", description=__doc__.split("\n")[0])
-    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub = ap.add_subparsers(dest="cmd")
+    sub.required = True  # not the keyword: Python 3.6 argparse lacks it
     sub.add_parser("hook")
     sub.add_parser("check")
     s = sub.add_parser("start")
@@ -448,7 +573,9 @@ def main(argv=None):
         return 0
     if args.cmd == "run":
         cmd = args.command[1:] if args.command[:1] == ["--"] else args.command
-        return ev.run_recorded(cmd, os.path.join(jev.home(), "runs.jsonl"))
+        hunks = _hunks(os.getcwd(), load_session(AGENT_SESSION))
+        changed = any(not ev.TEST_PATH.search(h["file"]) for h in hunks)  # tests added first do not count as the fix
+        return ev.run_recorded(cmd, os.path.join(jev.home(), "runs.jsonl"), changed)
     if args.cmd == "start":
         start_turn(AGENT_SESSION, os.getcwd(), args.request)
         runs = os.path.join(jev.home(), "runs.jsonl")
@@ -461,17 +588,19 @@ def main(argv=None):
             args.dry = True
         response = agent_decide(reg, args.moment, args)
         print(json.dumps(response, indent=2, ensure_ascii=False))
-        if response["verdict"] == "revise":
+        if has_news(response):
             print("\n" + render(response), file=sys.stderr)
-            return 2 if mode() == "enforce" else 0
-        return 0
+        return 2 if response["verdict"] == "revise" and mode() == "enforce" else 0
     if mode() == "off":
         return 0
     try:  # hook
-        code, msg = hook_main(json.load(sys.stdin), reg)
+        result = hook_main(json.load(sys.stdin), reg)
     except Exception as err:  # never break the agent
         log({"ts": time.time(), "moment": "crash", "error": str(err)[:300]})
         return 0
+    code, msg = result[0], result[1]
+    if len(result) > 2 and result[2]:
+        print(result[2])  # stdout JSON: the harness applies updatedInput
     if msg:
         print(msg, file=sys.stderr)
     return code

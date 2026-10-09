@@ -1,12 +1,17 @@
 {
   "_about": "Decision registry for the karpathy-jev router. identify: code picks candidate decisions for a moment from `moment` and `needs`. construct: one Jev request with the routing questions plus every candidate's questions, and only the state paths they declare. respond: code applies each decision's `gate` against the routing answers, then its thresholds; messages come from here. Thresholds are uncalibrated starting points: refit with `router.py replay`.",
-  "model": "jev-latest",
+  "model": "jev-1.13.0",
   "source": "https://github.com/multica-ai/andrej-karpathy-skills (commit 2c60614), derived from https://x.com/karpathy/status/2015883857489522876",
   "moments": {
     "turn_start": {
       "hook": "UserPromptSubmit",
       "when": "A new user request arrives.",
       "does": "Records the request and a git baseline. No decision."
+    },
+    "before_command": {
+      "hook": "PreToolUse (Bash)",
+      "when": "Before each shell command.",
+      "does": "Prepends `set -o pipefail;` to a piped command so the check's exit status, not the filter's, is observed. No decision."
     },
     "before_first_edit": {
       "hook": "PreToolUse (Edit, Write, MultiEdit, NotebookEdit, apply_patch)",
@@ -200,6 +205,16 @@
         "deletes_unrelated_code": {
           "type": "noul",
           "instructions": "Does `observed.hunks[{i}].diff` delete pre-existing code that `request` did not ask to remove and that this change did not make unused?"
+        },
+        "unrequested_docs": {
+          "type": "noul",
+          "instructions": {
+            "question": "Is `observed.hunks[{i}].diff` an edit to documentation, a changelog, or release notes, when `request` does not ask for any documentation change?"
+          },
+          "criteria": {
+            "true": "The hunk edits docs, a changelog, or release notes, and `request` asks only for a code change. Count it even when the text describes the requested fix.",
+            "false": "The hunk changes code or tests, or `request` asks for documentation."
+          }
         }
       },
       "respond": [
@@ -250,7 +265,7 @@
         "exercises": {
           "type": "noul",
           "instructions": {
-            "premise": "`observed.commands_after_last_edit[{i}].command` ran after the agent's final edit.",
+            "premise": "`observed.commands_after_last_edit[{i}].command` ran after the agent's final edit; the end of its output is `observed.commands_after_last_edit[{i}].output`.",
             "question": "Does that command run a test or check that exercises the behavior `request` is about?",
             "does_not_count": [
               "Listing files, git status, or printing file contents.",
@@ -264,7 +279,7 @@
         {
           "if": "claims_done >= 0.6 AND admits_unverified < 0.5 AND no command has (exercises >= 0.6 AND result = ok)",
           "outcome": "block",
-          "message": "You say the task is done, but no passing test or check that exercises the request ran after your last edit. Run one, or say plainly that it is unverified."
+          "message": "You say the task is done, but no passing test or check that exercises the request ran after your last edit. Run one, or say plainly that it is unverified. A check piped into tail/head/grep reports the pipe's exit code, not the check's: run it plain."
         }
       ],
       "thresholds": {
@@ -282,7 +297,7 @@
       "principle": "goal_driven_execution",
       "moment": "before_done",
       "needs": [
-        "hunks"
+        "changed"
       ],
       "gate": {
         "route": "task_kind",
@@ -292,17 +307,45 @@
       },
       "evidence": [
         "request",
-        "observed.hunks"
+        "observed.hunks",
+        "observed.commands_on_unfixed_code"
       ],
+      "commands_from": "observed.commands_on_unfixed_code",
       "questions": {},
+      "per_command_questions": {
+        "reproduces": {
+          "type": "noul",
+          "instructions": {
+            "premise": "`observed.commands_on_unfixed_code[{i}].command` ran while the fix was not in the tree (before any non-test file was edited, or after the change was stashed or reverted). Its result was `observed.commands_on_unfixed_code[{i}].result` and the end of its output is `observed.commands_on_unfixed_code[{i}].output`.",
+            "question": "Judged on its own, ignoring what ran later: does that command run a test, script, or check that fails because of the problem `request` describes?",
+            "does_not_count": [
+              "Listing files, reading code, git status, or searching.",
+              "Installing dependencies.",
+              "A command that fails for an unrelated reason, such as a missing module or a typo."
+            ]
+          },
+          "criteria": {
+            "true": "The command exercises the function, file, or behavior that `request` names, and its failure is what the request describes. A pytest node, a test file, a doctest, or a one-off script of that behavior all count.",
+            "false": "The command only reads, lists, or searches code, installs dependencies, or fails for an unrelated reason, or it does not touch the behavior `request` describes."
+          }
+        }
+      },
       "respond": [
+        {
+          "if": "no command on the unfixed code has (result = error AND reproduces >= 0.6)",
+          "outcome": "block",
+          "message": "This is a bug fix, but no check failed on the unfixed code. Reproduce first: before editing any non-test file (adding a test first is fine), or with your change stashed or reverted, run a test or script that exits non-zero because of the bug, for example an assert; run it plain, not piped into tail/head/grep and not followed by echo. Then fix it and show that same check passing."
+        },
         {
           "if": "no changed file is a test file (checked in code)",
           "outcome": "advise",
           "message": "This is a bug fix but no test file changed. Consider a test that reproduces the bug."
         }
       ],
-      "thresholds": {}
+      "thresholds": {
+        "reproduces_min": 0.6,
+        "max_commands": 15
+      }
     }
   },
   "principles": {
