@@ -10,7 +10,7 @@ The plugin includes both the skill and the hooks that run these checks automatic
 
 ## Comparison with the Original Skill
 
-| Aspect | Native agent | Original Karpathy skill | karpathy-jev |
+| Aspect | Native agent | Baseline: original Karpathy skill | karpathy-jev |
 |---|---|---|---|
 | Added guidelines | None | Skill text | Skill text and router |
 | Who checks compliance? | Agent | Agent | Jev judges evidence; code applies rules |
@@ -19,14 +19,8 @@ The plugin includes both the skill and the hooks that run these checks automatic
 | Hidden pipeline failures handled? | No added handling | No added handling | `pipefail` and result parsing |
 | External judge required? | No | No | TypeSafe API key |
 | Support outside Claude Code | Agent's own behaviour | Voluntary skill use | Explicit router calls |
-| Sonnet 5: tasks resolved | 18/20 | 19/20 | **20/20** |
-| Sonnet 5: reported false “done” | 2 | 1 | **0** |
-| Sonnet 5: reported self-verification | 1/20 | 4/20 | **13/20** |
-| Sonnet 5: median time/task | 158 s | 159 s | 170 s |
-| GPT-5.5: tasks resolved | 16/20 | 16/20 | **17/20** |
-| GPT-5.5: reported false “done” | 4 | 4 | **3** |
-| GPT-5.5: reported self-verification | 20/20 | 20/20 | 20/20 |
-| GPT-5.5: median time/task | 110 s | 97 s | 160 s |
+| Claude Code / Sonnet 5: tasks resolved | 18/20 | 19/20 | **20/20** |
+| Codex / GPT-5.5: tasks resolved | 16/20 | 16/20 | **17/20** |
 
 **Performance rows:** historical “fixed” version, SWE-bench Verified, 20 tasks per method, one attempt
 each. Sonnet 5 used Claude Code hooks; GPT-5.5 used voluntary calls in Codex. The small sample does not
@@ -112,7 +106,8 @@ The router applies the configured rules and can ask the agent to revise its work
 For example, an agent writes “fixed, tests pass,” but its last test ran **before** the final edit.
 The router can request a relevant test after that edit before allowing it to finish.
 
-## The Four Principles
+<details id="the-four-principles">
+<summary><strong>The Four Principles</strong></summary>
 
 ### 1. Think Before Coding
 
@@ -142,6 +137,8 @@ changing production code, then run a relevant check after the final edit.
 
 The router looks for this evidence. A passing test can still miss a bug, and Jev can make a wrong
 judgment.
+
+</details>
 
 ## How it works
 
