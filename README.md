@@ -112,7 +112,8 @@ The router applies the configured rules and can ask the agent to revise its work
 For example, an agent writes “fixed, tests pass,” but its last test ran **before** the final edit.
 The router can request a relevant test after that edit before allowing it to finish.
 
-## The Four Principles
+<details>
+<summary><strong>The Four Principles</strong></summary>
 
 ### 1. Think Before Coding
 
@@ -142,6 +143,8 @@ changing production code, then run a relevant check after the final edit.
 
 The router looks for this evidence. A passing test can still miss a bug, and Jev can make a wrong
 judgment.
+
+</details>
 
 ## How it works
 
