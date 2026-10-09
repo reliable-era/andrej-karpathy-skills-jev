@@ -47,6 +47,11 @@ model; record the provider's returned model identity and any remaining version u
 
 ## 4. Use Pull Requests for Future Updates
 
+Submit changes only to **`reliable-era/andrej-karpathy-skills-jev`**. External repositories,
+including `multica-ai/andrej-karpathy-skills`, are read-only references. Do not push branches or
+create pull requests, issues, or comments there without new explicit user authorization.
+For GitHub write commands, always specify `--repo reliable-era/andrej-karpathy-skills-jev`.
+
 The repository is already public. Future code, plugin metadata, documentation, and evaluation changes
 must use a feature branch and a PR targeting `main`, including this evaluation-plan update.
 

@@ -6,7 +6,45 @@ A Claude Code plugin that asks [TypeSafe Jev](https://typesafe.ai) to check whet
 It checks assumptions before editing, and simplicity, scope, and verification before finishing.
 The plugin includes both the skill and the hooks that run these checks automatically.
 
-[Install](#install) · [The four principles](#the-four-principles) · [How it works](#how-it-works) · [Results](#results)
+[Comparison](#comparison-with-the-original-skill) · [Install](#install) · [The four principles](#the-four-principles) · [How it works](#how-it-works) · [Results](#results)
+
+## Comparison with the Original Skill
+
+| Aspect | Native agent | Original Karpathy skill | karpathy-jev |
+|---|---|---|---|
+| Added guidelines | None | Skill text | Skill text and router |
+| Who checks compliance? | Agent | Agent | Jev judges evidence; code applies rules |
+| Runs if the skill text is never opened? | No added check | No | Yes, with Claude Code hooks |
+| Diff and command evidence collected by a router? | No | No | Yes |
+| Hidden pipeline failures handled? | No added handling | No added handling | `pipefail` and result parsing |
+| External judge required? | No | No | TypeSafe API key |
+| Support outside Claude Code | Agent's own behaviour | Voluntary skill use | Explicit router calls |
+| Sonnet 5: tasks resolved | 18/20 | 19/20 | **20/20** |
+| Sonnet 5: reported false “done” | 2 | 1 | **0** |
+| Sonnet 5: reported self-verification | 1/20 | 4/20 | **13/20** |
+| Sonnet 5: median time/task | 158 s | 159 s | 170 s |
+| GPT-5.5: tasks resolved | 16/20 | 16/20 | **17/20** |
+| GPT-5.5: reported false “done” | 4 | 4 | **3** |
+| GPT-5.5: reported self-verification | 20/20 | 20/20 | 20/20 |
+| GPT-5.5: median time/task | 110 s | 97 s | 160 s |
+
+**Performance rows:** historical “fixed” version, SWE-bench Verified, 20 tasks per method, one attempt
+each. Sonnet 5 used Claude Code hooks; GPT-5.5 used voluntary calls in Codex. The small sample does not
+establish a reliable success gain, and claim calibration and strict-verification audits remain
+incomplete. See [Results](#results) for definitions and costs.
+
+These are differences in the added mechanism. A native agent can still ask questions, make a small
+patch, and run tests on its own.
+
+The historical Sonnet comparison reported that the original skill was never opened (0/20), while
+hooks ran this router automatically. It also reported 10/20 Jev runs ending with a block still open;
+that count does not establish that every block was correct. See the
+[evaluation details](eval/EVALUATION.md) for the reported outcomes and audit limits.
+
+![Comparison of the original Karpathy skill and karpathy-jev: hooks collect diff and command evidence, Jev judges it, and router rules return proceed, revise, or unchecked. The revise path returns to the agent.](assets/skill-mechanism.png)
+
+*Jev supplies judgments; code applies gates and thresholds. Claude Code invokes the router through
+hooks, while other agents must call it explicitly. Finishing checks are limited to two reviews.*
 
 ## Install
 
@@ -104,26 +142,6 @@ changing production code, then run a relevant check after the final edit.
 
 The router looks for this evidence. A passing test can still miss a bug, and Jev can make a wrong
 judgment.
-
-## Comparison with the Original Skill
-
-| Aspect | Native agent | Original Karpathy skill | karpathy-jev |
-|---|---|---|---|
-| Added guidelines | None | Skill text | Skill text and router |
-| Who checks compliance? | Agent | Agent | Jev judges evidence; code applies rules |
-| Runs if the skill text is never opened? | No added check | No | Yes, with Claude Code hooks |
-| Diff and command evidence collected by a router? | No | No | Yes |
-| Hidden pipeline failures handled? | No added handling | No added handling | `pipefail` and result parsing |
-| External judge required? | No | No | TypeSafe API key |
-| Support outside Claude Code | Agent's own behaviour | Voluntary skill use | Explicit router calls |
-
-These are differences in the added mechanism. A native agent can still ask questions, make a small
-patch, and run tests on its own.
-
-The historical Sonnet comparison reported that the original skill was never opened (0/20), while
-hooks ran this router automatically. It also reported 10/20 Jev runs ending with a block still open;
-that count does not establish that every block was correct. See the
-[evaluation details](eval/EVALUATION.md) for the reported outcomes and audit limits.
 
 ## How it works
 
