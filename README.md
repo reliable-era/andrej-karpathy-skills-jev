@@ -28,6 +28,36 @@ The four [Karpathy guidelines](https://github.com/multica-ai/andrej-karpathy-ski
 The router looks for evidence of these behaviours. It cannot prove that a passing test covers every
 bug or that Jev's judgment is correct.
 
+### At a glance
+
+<p>Native vs. the Karpathy skill vs. karpathy-jev. In group B, every check in karpathy-jev is made by Jev from observed evidence. Measured outcomes are in <a href="#results">Results</a>.</p>
+
+<table>
+<thead><tr><th>Aspect</th><th>Native<br>(no skill)</th><th>Karpathy skill<br>(prompt-only)</th><th>Ours<br>(karpathy-jev)</th></tr></thead>
+<tbody>
+<tr><td colspan="4"><b>A. Delivery — does the method reach the agent?</b></td></tr>
+<tr><td>Guidelines are in the agent's context</td><td>❌</td><td>✅</td><td>✅</td></tr>
+<tr><td>Active even if the model never opens the skill</td><td>—</td><td>❌ (Sonnet opened it 0/20)</td><td>✅ hooks (Claude Code); ⚠️ voluntary in Codex</td></tr>
+<tr><td colspan="4"><b>B. Is each guideline checked?</b> (⚠️ = asked in the skill text; the agent judges itself)</td></tr>
+<tr><td>1. Think before coding (unclear request)</td><td>❌</td><td>⚠️</td><td>✅ request, before the first edit ¹</td></tr>
+<tr><td>2. Simplicity first</td><td>❌</td><td>⚠️</td><td>✅ the diff</td></tr>
+<tr><td>3. Surgical changes (scope)</td><td>❌</td><td>⚠️</td><td>✅ each changed hunk vs. the request</td></tr>
+<tr><td>4. Goal-driven (verify the result)</td><td>❌</td><td>⚠️</td><td>✅ a test after the last edit; a bug fix must fail first, then pass</td></tr>
+<tr><td colspan="4"><b>C. Evidence — what the judgment is based on</b></td></tr>
+<tr><td>Observed diff and real exit codes</td><td>❌</td><td>❌</td><td>✅</td></tr>
+<tr><td>Detects results hidden by <code>| tail</code>, <code>; echo $?</code></td><td>❌</td><td>❌</td><td>✅</td></tr>
+<tr><td colspan="4"><b>D. Cost and risk</b></td></tr>
+<tr><td>External dependency</td><td>✅ none</td><td>✅ none</td><td>❌ Jev API key</td></tr>
+<tr><td>Median agent time per task (Sonnet)</td><td>158 s</td><td>159 s</td><td>170 s (+8 %; Codex +45 %)</td></tr>
+<tr><td>Wrong or unresolved push-backs</td><td>—</td><td>—</td><td>⚠️ 10/20 runs ended with a block still open ²</td></tr>
+<tr><td>If the judge is unreachable</td><td>—</td><td>—</td><td>fails open: verdict <code>unchecked</code>, agent continues</td></tr>
+</tbody>
+</table>
+
+<p>✅ yes / better · ⚠️ partial · ❌ no / worse · — not applicable.<br>
+¹ Implemented, but SWE-bench never exercised it: its issues are unambiguous.<br>
+² The agent argued and finished anyway, or the evidence stayed unobservable (<a href="eval/EVALUATION.md">evaluation details</a>, Table 3).</p>
+
 ## How it works
 
 ```text
