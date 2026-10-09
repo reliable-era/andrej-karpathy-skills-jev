@@ -1,0 +1,16 @@
+{
+  "name": "karpathy-jev",
+  "owner": {
+    "name": "reliable-era"
+  },
+  "metadata": {
+    "description": "The karpathy-jev skill and automatic Claude Code judgment hooks."
+  },
+  "plugins": [
+    {
+      "name": "karpathy-jev",
+      "source": "./",
+      "description": "Karpathy's coding guidelines checked by TypeSafe Jev through automatic Claude Code hooks."
+    }
+  ]
+}

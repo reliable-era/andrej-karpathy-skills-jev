@@ -1,62 +1,129 @@
-# karpathy-jev
+# Karpathy Guidelines with Jev Checks
 
-**Checks whether a coding agent followed Karpathy's guidelines before it finishes a code change.**
+A Claude Code plugin that asks [TypeSafe Jev](https://typesafe.ai) to check whether the agent followed
+[Karpathy's coding guidelines](https://github.com/multica-ai/andrej-karpathy-skills).
 
-The agent edits the code. A separate model, [TypeSafe Jev](https://typesafe.ai), reviews evidence from
-that work. A Python router turns its answers into a request to continue or revise.
+It checks assumptions before editing, and simplicity, scope, and verification before finishing.
+The plugin includes both the skill and the hooks that run these checks automatically.
 
-For example, an agent says “fixed, tests pass,” but its last test ran **before** its final edit.
-The router can ask it to run a relevant check again before finishing.
+[Install](#install) · [The four principles](#the-four-principles) · [How it works](#how-it-works) · [Results](#results)
 
-[How it works](#how-it-works) · [Setup](#setup) · [Results](#results) · [Detailed evaluation](eval/EVALUATION.md)
+## Install
 
-## What changes when you add this skill?
+Requires **Python 3.6+** and a **TypeSafe API key**. Make the key available through `TYPESAFE_API_KEY`
+or the private file `~/.karpathy-jev/key` before starting Claude Code.
 
-| Setup | How the guidelines are applied |
+### Option A: Claude Code plugin — recommended
+
+From inside Claude Code **2.1.275 or later**, install with one command:
+
+```text
+/plugin install karpathy-jev --marketplace reliable-era/andrej-karpathy-skills-jev
+```
+
+Choose the installation scope when prompted. This installs **the skill and its hooks together**;
+there is no need to copy files or edit hook commands. Follow Claude Code's install summary if it
+requests a reload.
+
+From a terminal with Claude Code **2.1.292 or later**, the equivalent is:
+
+```bash
+claude plugin install karpathy-jev --marketplace reliable-era/andrej-karpathy-skills-jev
+```
+
+See [Claude Code's plugin installation guide](https://code.claude.com/docs/en/discover-plugins#add-a-marketplace-and-install-in-one-command)
+for the supported installation scopes.
+
+### Option B: Install from a local checkout
+
+Run this once, replacing the path with your checkout:
+
+```bash
+claude plugin install karpathy-jev --marketplace /absolute/path/to/andrej-karpathy-skills-jev
+```
+
+To load the plugin for just one session, start Claude Code from your target project:
+
+```bash
+claude --plugin-dir /absolute/path/to/andrej-karpathy-skills-jev
+```
+
+Both options load the bundled skill and hooks. Copying only `SKILL.md` or the skill folder does not
+provide automatic checks.
+
+## The Problems
+
+A coding agent can make an assumption without checking it, build more than the request needs, change
+unrelated files, or say “done” without testing its final edit.
+
+The original Karpathy skill gives the agent rules for avoiding these mistakes. This plugin adds
+checks of the work the agent actually performed.
+
+## The Solution
+
+The agent writes the code. Jev judges specific questions about the request, diff, and command results.
+The router applies the configured rules and can ask the agent to revise its work.
+
+| Principle | What the router checks |
 |---|---|
-| **Native** | The coding agent works without an added Karpathy skill. |
-| **Karpathy skill** | The agent can read the guidelines and assess its own work. |
-| **karpathy-jev** | The router collects evidence and asks Jev to judge specific questions. Claude Code hooks can run these checks automatically. |
+| **Think Before Coding** | Does an unclear request need clarification before the first edit? |
+| **Simplicity First** | Does the patch contain work the request does not need? |
+| **Surgical Changes** | Are the changed hunks relevant to the request? |
+| **Goal-Driven Execution** | Was the final change checked? For a bug fix, was the failure reproduced first? |
 
-The four [Karpathy guidelines](https://github.com/multica-ai/andrej-karpathy-skills) are:
+For example, an agent writes “fixed, tests pass,” but its last test ran **before** the final edit.
+The router can request a relevant test after that edit before allowing it to finish.
 
-1. **Think before coding:** explain consequential assumptions or ask about an unclear request.
-2. **Keep it simple:** implement only what the request needs.
-3. **Make surgical changes:** keep each change relevant to the request.
-4. **Verify the goal:** run a relevant check after the final edit; for a bug fix, also reproduce the failure first.
+## The Four Principles
 
-The router looks for evidence of these behaviours. It cannot prove that a passing test covers every
-bug or that Jev's judgment is correct.
+### 1. Think Before Coding
 
-### At a glance
+Explain consequential assumptions. Ask when the request has several plausible interpretations.
+The first-edit check asks Jev whether the agent needs to address ambiguity.
 
-<p>Native vs. the Karpathy skill vs. karpathy-jev. In group B, every check in karpathy-jev is made by Jev from observed evidence. Measured outcomes are in <a href="#results">Results</a>.</p>
+### 2. Simplicity First
 
-<table>
-<thead><tr><th>Aspect</th><th>Native<br>(no skill)</th><th>Karpathy skill<br>(prompt-only)</th><th>Ours<br>(karpathy-jev)</th></tr></thead>
-<tbody>
-<tr><td colspan="4"><b>A. Delivery — does the method reach the agent?</b></td></tr>
-<tr><td>Guidelines are in the agent's context</td><td>❌</td><td>✅</td><td>✅</td></tr>
-<tr><td>Active even if the model never opens the skill</td><td>—</td><td>❌ (Sonnet opened it 0/20)</td><td>✅ hooks (Claude Code); ⚠️ voluntary in Codex</td></tr>
-<tr><td colspan="4"><b>B. Is each guideline checked?</b> (⚠️ = asked in the skill text; the agent judges itself)</td></tr>
-<tr><td>1. Think before coding (unclear request)</td><td>❌</td><td>⚠️</td><td>✅ request, before the first edit ¹</td></tr>
-<tr><td>2. Simplicity first</td><td>❌</td><td>⚠️</td><td>✅ the diff</td></tr>
-<tr><td>3. Surgical changes (scope)</td><td>❌</td><td>⚠️</td><td>✅ each changed hunk vs. the request</td></tr>
-<tr><td>4. Goal-driven (verify the result)</td><td>❌</td><td>⚠️</td><td>✅ a test after the last edit; a bug fix must fail first, then pass</td></tr>
-<tr><td colspan="4"><b>C. Evidence — what the judgment is based on</b></td></tr>
-<tr><td>Observed diff and real exit codes</td><td>❌</td><td>❌</td><td>✅</td></tr>
-<tr><td>Detects results hidden by <code>| tail</code>, <code>; echo $?</code></td><td>❌</td><td>❌</td><td>✅</td></tr>
-<tr><td colspan="4"><b>D. Cost and risk</b></td></tr>
-<tr><td>External dependency</td><td>✅ none</td><td>✅ none</td><td>❌ Jev API key</td></tr>
-<tr><td>Median agent time per task (Sonnet)</td><td>158 s</td><td>159 s</td><td>170 s (+8 %; Codex +45 %)</td></tr>
-<tr><td>Wrong or unresolved push-backs</td><td>—</td><td>—</td><td>⚠️ 10/20 runs ended with a block still open ²</td></tr>
-<tr><td>If the judge is unreachable</td><td>—</td><td>—</td><td>fails open: verdict <code>unchecked</code>, agent continues</td></tr>
-</tbody>
-</table>
+Implement what the request needs. Avoid speculative features and unnecessary abstractions.
+The finishing check asks Jev whether parts of the diff could be removed without losing requested work.
 
-<p>✅ yes / better · ⚠️ partial · ❌ no / worse · — not applicable.<br>
-¹ Implemented, but SWE-bench never exercised it: its issues are unambiguous.<br>
-² The agent argued and finished anyway, or the evidence stayed unobservable (<a href="eval/EVALUATION.md">evaluation details</a>, Table 3).</p>
+### 3. Surgical Changes
+
+Keep every change relevant to the request. Mention unrelated problems instead of quietly fixing them.
+The scope check compares changed hunks with the request.
+
+### 4. Goal-Driven Execution
+
+Define a check that exercises the requested behaviour. For a bug fix, reproduce the failure before
+changing production code, then run a relevant check after the final edit.
+
+```text
+1. Reproduce the bug → observe a failing check.
+2. Make the fix      → change the necessary code.
+3. Verify the fix    → run a passing check after the final edit.
+```
+
+The router looks for this evidence. A passing test can still miss a bug, and Jev can make a wrong
+judgment.
+
+## Comparison with the Original Skill
+
+| Aspect | Native agent | Original Karpathy skill | karpathy-jev |
+|---|---|---|---|
+| Added guidelines | None | Skill text | Skill text and router |
+| Who checks compliance? | Agent | Agent | Jev judges evidence; code applies rules |
+| Runs if the skill text is never opened? | No added check | No | Yes, with Claude Code hooks |
+| Diff and command evidence collected by a router? | No | No | Yes |
+| Hidden pipeline failures handled? | No added handling | No added handling | `pipefail` and result parsing |
+| External judge required? | No | No | TypeSafe API key |
+| Support outside Claude Code | Agent's own behaviour | Voluntary skill use | Explicit router calls |
+
+These are differences in the added mechanism. A native agent can still ask questions, make a small
+patch, and run tests on its own.
+
+The historical Sonnet comparison reported that the original skill was never opened (0/20), while
+hooks ran this router automatically. It also reported 10/20 Jev runs ending with a block still open;
+that count does not establish that every block was correct. See the
+[evaluation details](eval/EVALUATION.md) for the reported outcomes and audit limits.
 
 ## How it works
 
@@ -85,36 +152,7 @@ Checks are bounded to two finishing reviews. An unavailable judge does not block
 See the [decision rules](skills/karpathy-jev/references/decisions.md) and
 [router design](skills/karpathy-jev/references/design.md) for the exact questions and thresholds.
 
-## Setup
-
-Requires Python 3.6+ and a TypeSafe API key. Supply the key through `TYPESAFE_API_KEY` or the private
-file `~/.karpathy-jev/key`. The router itself uses only the Python standard library.
-
-### Install the skill in a project
-
-From your target project's root, set `JEV_REPO` to the absolute path of this repository:
-
-```bash
-JEV_REPO=/absolute/path/to/andrej-karpathy-skills-jev
-mkdir -p .claude/skills
-cp -R "$JEV_REPO/skills/karpathy-jev" .claude/skills/
-python3 .claude/skills/karpathy-jev/scripts/router.py check
-```
-
-The check prints configuration and whether a key is present; it does **not** test API connectivity.
-
-### Claude Code: automatic checks
-
-Merge the `hooks` object from [hooks/hooks.json](hooks/hooks.json) into your project's
-`.claude/settings.json`, preserving any existing hooks. In each command, replace
-`${CLAUDE_PLUGIN_ROOT}/skills/karpathy-jev/scripts/router.py` with the **absolute path** to the copied
-`.claude/skills/karpathy-jev/scripts/router.py`.
-
-Both the skill and the hooks are needed for automatic checks. Copying the skill folder alone makes
-its use voluntary. Router logs are written under `~/.karpathy-jev/` by default; inspect `log.jsonl`
-after a code change to confirm that the judgment hooks ran.
-
-### Other agents: explicit calls
+## Using with Other Agents
 
 Run the router from the target repository, using its installed or original absolute path:
 
@@ -130,6 +168,32 @@ python3 "$R" decide before_done --final "Fixed the bug; the focused test passes.
 
 Use the actual request, explanation, test command, and final message. On `revise`, address the feedback
 before continuing. This mode depends on the agent making the calls.
+
+## How to Know It Is Working
+
+In Claude Code, open `/plugin` and check that `karpathy-jev` is installed and enabled. Its skill is
+available as:
+
+```text
+/karpathy-jev:karpathy-jev
+```
+
+After a code change, inspect the router's default log:
+
+```bash
+tail -n 5 ~/.karpathy-jev/log.jsonl
+```
+
+Look for `before_first_edit` and `before_done` entries with judgment responses. An `unchecked` verdict
+means the required judgment was unavailable.
+
+From a local checkout, check configuration and key presence with:
+
+```bash
+python3 skills/karpathy-jev/scripts/router.py check
+```
+
+This configuration check does not make an API request.
 
 ## Results
 
@@ -194,6 +258,7 @@ reconciliation. This repository's hooked router was not run in that pilot.
 | Path | Contents |
 |---|---|
 | [skills/karpathy-jev/](skills/karpathy-jev/) | Skill instructions, decision registry, and Python router |
+| [.claude-plugin/](.claude-plugin/) | Plugin and marketplace manifests |
 | [hooks/hooks.json](hooks/hooks.json) | Claude Code hook definitions |
 | [tests/](tests/) | Offline checks for routing, evidence, and redaction |
 | [eval/](eval/) | Development fixtures, saved fixture results, and evaluation details |

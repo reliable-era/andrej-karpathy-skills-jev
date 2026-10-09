@@ -1,0 +1,11 @@
+{
+  "name": "karpathy-jev",
+  "version": "3.1.0",
+  "description": "Karpathy's coding guidelines checked by TypeSafe Jev through automatic Claude Code hooks.",
+  "author": {
+    "name": "reliable-era"
+  },
+  "repository": "https://github.com/reliable-era/andrej-karpathy-skills-jev",
+  "license": "MIT",
+  "keywords": ["karpathy", "jev", "coding", "verification"]
+}
