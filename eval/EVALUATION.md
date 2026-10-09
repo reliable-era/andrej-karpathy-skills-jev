@@ -41,8 +41,9 @@ If the Codex seat serves a different pinned GPT model, record its actual identit
 All three cells use fresh Docker environments; voluntary calls are not equivalent to enforced hooks.
 
 Pi supports lifecycle and tool extensions; its documented `agent_before_settle` event is an actionable
-finish boundary. This is an integration candidate, **not an implemented adapter**. Validate continuation
-limits and tool ordering against the pinned Pi version before using it in scored runs.
+finish boundary. The candidate `extensions/karpathy-jev.ts` is implemented and has passed six offline
+tests plus an unscored Docker/Qwen/live-Jev continuation smoke (2026-10-09). This establishes bounded
+adapter readiness, not scored effectiveness or final launch acceptance.
 See [Pi's extension documentation](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md).
 
 ### Model Backends
@@ -210,8 +211,11 @@ and record the decision. Queue time stays outside solve budgets; technical waits
 
 - Never mount host `~/.claude`, `~/.codex`, `~/.pi`, `~/.karpathy-jev` or credential files into Docker,
   even read-only. Never write or restore host credential files.
-- Never supply container refresh tokens. Re-snapshot per attempt: Claude OAuth access token + expiry
-  only; Codex `auth.json` with `tokens.refresh_token` removed. Smoke-test stripped-copy authentication.
+- Never supply a usable container refresh token. Per the reviewer-verified 2026-10-09 addendum,
+  re-snapshot per attempt: keep every Claude `claudeAiOauth` field except `refreshToken`; keep Codex
+  `tokens.refresh_token` as the empty string and set `last_refresh` to the snapshot time. Metadata is
+  required for CLI login parsing; empty refresh fields cannot rotate the real token. Smoke-test these
+  access-only copies and check both guest and host credential-file hashes.
   A user-provided mode-600 Claude setup token is an alternative; request it through the reviewer,
   never run setup-token autonomously.
 - Requeue attempts if token expiry is within the solve budget + ten minutes. Before the first Codex
@@ -229,6 +233,32 @@ overhead; API billing and local GPU costs are different categories. A larger sam
 guarantee statistical power; preregister a minimum effect and power calculation for the chosen matrix.
 
 ## Execution and Reporting
+
+### Readiness evidence as of 2026-10-09
+
+- Reviewer-corrected access-only Docker authentication passes for C1/C2. Claude keeps all OAuth
+  metadata except `refreshToken`; Codex retains an empty `refresh_token` and current `last_refresh`.
+  Both guest credential hashes and both host hashes remained unchanged during the authentication gates.
+- Nine synthetic cell/method smokes completed normally and passed the unchanged fixture test.
+  Original and Jev skill reads were observed; each Jev arm received first-edit and finish replies,
+  with no live replies observed in native/original arms. These smokes do not estimate benchmark accuracy.
+- Common final-diff capture replays staged, worktree, untracked, ignored and binary changes. Keep raw
+  capture separate from the still-to-be-frozen production-scope/grading projection.
+- Passive exit collection preserves status: C1 uses `CLAUDE_CODE_SHELL_PREFIX` (the pinned CLI passes
+  one wrapped Bash command string); C2/C3 use `BASH_ENV`. Native probes observed exits 1/0/1 for
+  `false`, `false | cat`, and explicit pipefail. Install the same cell-specific collector in every method;
+  it must not itself enable pipefail. Missing receipts are unknown, not successful verification.
+- Unavailable-judge handling was checked in the shared router: `unchecked`, fail-open exit 0, no
+  successful judgment. Existing Pi smoke separately establishes `revise` continuation and its limit.
+- SWE positive/negative controls: 25 required passes versus four expected failures and 21 passes.
+  The scoped Docker adapter drops the installed grader's `SYS_ADMIN`, uses 2 CPUs/8 GiB and no host
+  mounts, without modifying gold/test patches or grader scripts. Terminal oracle/nop controls: three
+  required passes/reward 1 versus three failures/reward 0. These are common grader controls, not
+  generated solver scores or claims of an unmodified official scaffold.
+- Full local evidence: `../../eval_min/campaign/gates/technical_root_acceptance_v1.json` and
+  `../../eval_min/campaign/gates/GATE_INDEX.md`. Human calibration remains pending reviewer/user.
+  The full launch manifest is not sealed; synthetic tooling smokes do not establish compatibility of
+  all sampled task images. No scored attempts have launched. Reviewer acceptance is still required.
 
 ### Before Scoring
 
