@@ -80,16 +80,16 @@ comparison. Setting of every table: 20 SWE-bench Verified tasks (seed 20260925),
 and arm, same prompt for all arms, unless the caption says otherwise. Differences of 2–3 tasks are
 within run-to-run noise (Table 6). Full data: `../eval_min/` (`result.md`, `report*.md`, `scores*.csv`).
 
-<details><summary><b>Terms used in the tables</b> (click to expand)</summary>
-
+<p><b>Methods compared in the tables</b></p>
 <ul>
 <li><b>Ours</b> — this repo's skill (<code>karpathy-jev</code>). Versions: <i>initial</i> (v1), <i>fixed</i> (v2: safe git baseline, Python 3.6, docs label, reproduction rule, two judged rounds), <i>fixed + pipefail</i> (v3: adds the Bash pipefail hook and output-summary reading).</li>
 <li><b>Karpathy skill</b> — the upstream prompt-only skill; the agent judges its own compliance.</li>
 <li><b>A, B</b> — external voluntary skills (<code>karpathy-jev-guidelines</code> v1, v2): a stage router (pre/clarify/select/post) over an agent-written state file; rejects non-ASCII requests. <b>C</b> — their v3: a phase router (think/design/criteria/diff/finish).</li>
 <li><b>D</b> — a later external voluntary bundle (<code>v005</code>); <b>D′</b> — its revision that makes Jev consultation mandatory before the first edit and at verification (<code>v005.1</code>).</li>
 <li><b>Enforced</b> — Claude Code hooks call the router whether or not the model opens the skill. <b>Voluntary</b> — the agent must call the router itself.</li>
+<li><b>Resolved</b> (outcome) — the official harness applies the patch and the hidden tests pass. <b>Verified</b> (behaviour) — the agent itself ran a test after its last edit with a real exit 0. The two differ: the agent's tests are not the hidden tests, and a test piped through <code>| tail</code> reports <code>tail</code>'s exit code, so it is not an observed check. The router can act only on <i>verified</i>; it never sees the hidden tests.</li>
 </ul>
-</details>
+
 
 <p><b>Table 1 — Main result.</b> SWE-bench Verified, 20 tasks, one attempt each (k = 1), pass v2. Same prompt for every arm.</p>
 
@@ -135,7 +135,7 @@ within run-to-run noise (Table 6). Full data: `../eval_min/` (`result.md`, `repo
 
 <p><sup>g</sup> The initial version's environment could not run <code>git stash</code> and its verification column counted masked runs; superseded.</p>
 
-<p><b>Table 3 — Adoption of voluntary skills.</b> Same tasks; the <i>condition</i> changes. <i>Opened</i> = the model loaded the skill; <i>Router</i> = runs with at least one live Jev request.</p>
+<p><b>Table 3 — Why voluntary skills measure as no-ops: adoption under three conditions.</b> Same tasks. A skill can only act if the model <i>opens</i> it and then <i>calls its router</i>; this table counts both (of 20 runs) for the four external voluntary skills A–D under (i) the skill as delivered, (ii) only its <code>description</code> changed to name the task, (iii) the prompt forcing its use. Ours is the reference: hooks make the opening step irrelevant.</p>
 
 <table>
 <thead>
@@ -144,22 +144,22 @@ within run-to-run noise (Table 6). Full data: `../eval_min/` (`result.md`, `repo
 </thead>
 <tbody>
 <tr><td rowspan="10">Claude Code<br>Sonnet 5</td><td rowspan="5">as delivered</td><td>Karpathy skill (prompt-only)</td><td>0</td><td>—</td><td>—</td><td>19/20</td><td>159 s</td></tr>
-<tr><td>A</td><td>0</td><td>0</td><td>0</td><td>18/20</td><td>204 s</td></tr>
-<tr><td>B</td><td>0</td><td>0</td><td>0</td><td>18/20</td><td>222 s</td></tr>
-<tr><td>C</td><td>0</td><td>0</td><td>0</td><td>19/20</td><td>219 s</td></tr>
-<tr><td>D</td><td>15</td><td>0</td><td>0</td><td>17/20</td><td>n/a</td></tr>
-<tr><td rowspan="3">description names the task<sup>h</sup></td><td>A</td><td>16</td><td>0</td><td>0</td><td>18/20</td><td>136 s</td></tr>
-<tr><td>B</td><td>17</td><td>0</td><td>0</td><td>18/20</td><td>133 s</td></tr>
-<tr><td>C</td><td>15</td><td>0</td><td>0</td><td>19/20</td><td>131 s</td></tr>
-<tr><td>router required by prompt<sup>i</sup></td><td>C</td><td>20</td><td>20</td><td>55</td><td>17/20</td><td>381 s</td></tr>
+<tr><td>A — external, stage router (v1)</td><td>0</td><td>0</td><td>0</td><td>18/20</td><td>204 s</td></tr>
+<tr><td>B — external, stage router (v2)</td><td>0</td><td>0</td><td>0</td><td>18/20</td><td>222 s</td></tr>
+<tr><td>C — external, phase router (v3)</td><td>0</td><td>0</td><td>0</td><td>19/20</td><td>219 s</td></tr>
+<tr><td>D — external, later bundle</td><td>15</td><td>0</td><td>0</td><td>17/20</td><td>n/a</td></tr>
+<tr><td rowspan="3">description names the task<sup>h</sup></td><td>A — external, stage router (v1)</td><td>16</td><td>0</td><td>0</td><td>18/20</td><td>136 s</td></tr>
+<tr><td>B — external, stage router (v2)</td><td>17</td><td>0</td><td>0</td><td>18/20</td><td>133 s</td></tr>
+<tr><td>C — external, phase router (v3)</td><td>15</td><td>0</td><td>0</td><td>19/20</td><td>131 s</td></tr>
+<tr><td>router required by prompt<sup>i</sup></td><td>C — external, phase router (v3)</td><td>20</td><td>20</td><td>55</td><td>17/20</td><td>381 s</td></tr>
 <tr><td><b>enforced by hooks</b></td><td><b>Ours, fixed</b></td><td>n/a<sup>j</sup></td><td><b>20</b></td><td><b>62</b></td><td><b>20/20</b></td><td>170 s</td></tr>
-<tr><td rowspan="8">Codex<br>GPT-5.5</td><td rowspan="4">as delivered</td><td>A</td><td>3</td><td>0</td><td>0</td><td>16/20</td><td>170 s</td></tr>
-<tr><td>B</td><td>6</td><td>1</td><td>1</td><td>16/20</td><td>181 s</td></tr>
-<tr><td>C</td><td>20</td><td>0</td><td>0</td><td>15/20</td><td>230 s</td></tr>
-<tr><td>D</td><td>20</td><td>0</td><td>0</td><td>15/20</td><td>n/a</td></tr>
-<tr><td rowspan="3">skill named in prompt<sup>i</sup></td><td>A</td><td>20</td><td>19</td><td>70</td><td>15/20</td><td>300 s</td></tr>
-<tr><td>B</td><td>20</td><td>20</td><td>80</td><td>16/20</td><td>347 s</td></tr>
-<tr><td>C</td><td>20</td><td>9</td><td>37</td><td>15/20</td><td>276 s</td></tr>
+<tr><td rowspan="8">Codex<br>GPT-5.5</td><td rowspan="4">as delivered</td><td>A — external, stage router (v1)</td><td>3</td><td>0</td><td>0</td><td>16/20</td><td>170 s</td></tr>
+<tr><td>B — external, stage router (v2)</td><td>6</td><td>1</td><td>1</td><td>16/20</td><td>181 s</td></tr>
+<tr><td>C — external, phase router (v3)</td><td>20</td><td>0</td><td>0</td><td>15/20</td><td>230 s</td></tr>
+<tr><td>D — external, later bundle</td><td>20</td><td>0</td><td>0</td><td>15/20</td><td>n/a</td></tr>
+<tr><td rowspan="3">skill named in prompt<sup>i</sup></td><td>A — external, stage router (v1)</td><td>20</td><td>19</td><td>70</td><td>15/20</td><td>300 s</td></tr>
+<tr><td>B — external, stage router (v2)</td><td>20</td><td>20</td><td>80</td><td>16/20</td><td>347 s</td></tr>
+<tr><td>C — external, phase router (v3)</td><td>20</td><td>9</td><td>37</td><td>15/20</td><td>276 s</td></tr>
 <tr><td><b>voluntary</b></td><td><b>Ours, fixed</b></td><td>20</td><td><b>20</b></td><td><b>55</b></td><td><b>17/20</b></td><td>160 s</td></tr>
 </tbody>
 </table>
@@ -180,8 +180,7 @@ within run-to-run noise (Table 6). Full data: `../eval_min/` (`result.md`, `repo
 | external | later bundle D, as delivered | 16/20 | 0 | 17/20 | +3.6 % vs native |
 | external | D′, consultation mandatory | 17/20 | 27 | 20/20 (audited) | +13 % vs native |
 
-**Table 5 — Cross-benchmark pilot. Claude Code / Qwen3.8-27B-FP8; 3 tasks per benchmark per arm; raw grader pass.**
-The Jev arm here is the external bundle D′ (consultation mandatory), not ours. 36/36 attempts finished; 22 audited.
+**Table 5 — Cross-benchmark pilot, run by others without our skill.** Claude Code / Qwen3.8-27B-FP8; 3 tasks per benchmark per arm; raw grader pass. **Ours was not run on these benchmarks**; the Jev arm is the external bundle D′ (consultation mandatory). Included only as context. 36/36 attempts finished; 22 audited.
 
 | Benchmark | Native | Karpathy (prompt-only) | external D′ (Jev) |
 |---|---:|---:|---:|
@@ -190,6 +189,7 @@ The Jev arm here is the external bundle D′ (consultation mandatory), not ours.
 | LiveCodeBench v6 | 0/3 | 0/3 | 1/3¹¹ |
 | Terminal-Bench 2.0 | 2/3 | 3/3 | 3/3 |
 | **All (raw)** | **7/12** | **7/12** | **9/12** |
+| Ours | not run | not run | not run |
 
 ¹¹ Passed the grader but exceeded the solve budget; counts as 0 under the primary metric (reward 1 and
 normal completion), which is known only for the 22 audited attempts (9 primary of 12 raw).
