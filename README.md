@@ -169,6 +169,36 @@ See the [decision rules](skills/karpathy-jev/references/decisions.md) and
 
 ## Using with Other Agents
 
+### Pi 1.1.0: experimental automatic adapter
+
+From the target repository, load the extension and skill from this checkout:
+
+```bash
+pi --extension /absolute/path/to/karpathy-jev/extensions/karpathy-jev.ts \
+   --skill /absolute/path/to/karpathy-jev/skills/karpathy-jev
+```
+
+The extension calls the unchanged Python hook router at user-turn start, before the first `edit` or
+`write`, before Bash commands for pipefail handling, and at `agent_before_settle`. A finish `revise`
+continues the agent; at most two finish reviews run per user turn. It records observed tool events in
+`KARPATHY_JEV_HOME` (default `~/.karpathy-jev`) alongside the router log. Do not also invoke the manual
+router lifecycle below: the extension owns these boundaries. Shell-based file changes do not invoke
+the first-edit hook, matching the existing Claude hook coverage.
+
+Validation so far: six offline adapter tests and an unscored Docker/pi/Qwen fixture with live Jev
+`before_first_edit` and `before_done` answers, `proceed → revise → proceed`, and observed continuation.
+This is adapter readiness evidence, **not a scored benchmark or completed campaign**. Judge failures
+remain logged as `unchecked`, following the existing router's fail-open policy.
+
+```bash
+node --experimental-test-module-mocks --test tests/test_pi_adapter.mjs
+```
+
+For the campaign, run Pi inside Docker with no host credential-directory mounts; only the Jev arm
+receives the authorized Jev key. Follow the [campaign plan](eval/EVALUATION.md) and reviewer gates.
+
+### Codex and other agents: voluntary calls
+
 Run the router from the target repository, using its installed or original absolute path:
 
 ```bash
