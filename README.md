@@ -10,7 +10,7 @@ The plugin includes both the skill and the hooks that run these checks automatic
 
 ## Comparison with the Original Skill
 
-| Aspect | Native agent | Original Karpathy skill | karpathy-jev |
+| Aspect | Native agent | Baseline: original Karpathy skill | karpathy-jev |
 |---|---|---|---|
 | Added guidelines | None | Skill text | Skill text and router |
 | Who checks compliance? | Agent | Agent | Jev judges evidence; code applies rules |
