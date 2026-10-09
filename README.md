@@ -80,65 +80,95 @@ comparison. Setting of every table: 20 SWE-bench Verified tasks (seed 20260925),
 and arm, same prompt for all arms, unless the caption says otherwise. Differences of 2–3 tasks are
 within run-to-run noise (Table 6). Full data: `../eval_min/` (`result.md`, `report*.md`, `scores*.csv`).
 
-Terms used in the tables (internal artifact ids in parentheses, for tracing to `../eval_min/`):
-**Ours** = this repo's skill (`karpathy-jev`; *initial* = v1, *fixed* = v2, *fixed + pipefail* = v3);
-**Karpathy skill** = the upstream prompt-only skill; **A, B, C** = external voluntary skills
-`karpathy-jev-guidelines` v1/v2/v3 (`kjg-v1/2/3`); **D, D′** = a later external voluntary bundle and its
-mandatory-consultation revision (`v005`, `v005.1`).
+<details><summary><b>Terms used in the tables</b> (click to expand)</summary>
 
+<ul>
+<li><b>Ours</b> — this repo's skill (<code>karpathy-jev</code>). Versions: <i>initial</i> (v1), <i>fixed</i> (v2: safe git baseline, Python 3.6, docs label, reproduction rule, two judged rounds), <i>fixed + pipefail</i> (v3: adds the Bash pipefail hook and output-summary reading).</li>
+<li><b>Karpathy skill</b> — the upstream prompt-only skill; the agent judges its own compliance.</li>
+<li><b>A, B</b> — external voluntary skills (<code>karpathy-jev-guidelines</code> v1, v2): a stage router (pre/clarify/select/post) over an agent-written state file; rejects non-ASCII requests. <b>C</b> — their v3: a phase router (think/design/criteria/diff/finish).</li>
+<li><b>D</b> — a later external voluntary bundle (<code>v005</code>); <b>D′</b> — its revision that makes Jev consultation mandatory before the first edit and at verification (<code>v005.1</code>).</li>
+<li><b>Enforced</b> — Claude Code hooks call the router whether or not the model opens the skill. <b>Voluntary</b> — the agent must call the router itself.</li>
+</ul>
+</details>
 
-**Table 1 — Main result. SWE-bench Verified, n = 20, k = 1. Pass v2 (fixed environment).**
+<p><b>Table 1 — Main result.</b> SWE-bench Verified, 20 tasks, one attempt each (k = 1), pass v2. Same prompt for every arm.</p>
 
-| Harness / model | Type | Method | Resolved | False "done"¹ | Verified² | Outside-gold files³ | Size ratio³ | Jev calls | Time / task⁴ |
-|---|---|---|---:|---:|---:|---:|---:|---:|---:|
-| Claude Code / Sonnet 5 | baseline | Native | 18/20 | 2 | 1/20 | 0 | 1.16 | — | 158 s |
-| Claude Code / Sonnet 5 | prompt-only | Karpathy skill⁵ | 19/20 | 1 | 4/20 | 1 | 1.42 | — | 159 s |
-| Claude Code / Sonnet 5 | **ours, hooks** | **Ours (enforced by hooks)** | **20/20** | **0** | **13/20** | **0** | **1.00** | 62 | 170 s |
-| Codex / GPT-5.5 | baseline | Native | 16/20 | 4 | 20/20⁶ | 0 | 1.00 | — | 110 s |
-| Codex / GPT-5.5 | prompt-only | Karpathy skill (read 20/20) | 16/20 | 4 | 20/20⁶ | 0 | 1.00 | — | 97 s |
-| Codex / GPT-5.5 | **ours, voluntary** | **Ours (agent calls the router)** | **17/20** | **3** | 20/20⁶ | 0 | 1.00 | 55 | 160 s |
+<table>
+<thead>
+<tr><th rowspan="2">Harness / model</th><th rowspan="2">Method</th><th colspan="2">Outcome</th><th rowspan="2">Verified<br>after last edit<sup>b</sup></th><th colspan="2">Scope (median)<sup>c</sup></th><th colspan="2">Cost</th></tr>
+<tr><th>Resolved</th><th>False "done"<sup>a</sup></th><th>Files outside gold</th><th>Size ratio</th><th>Live Jev calls</th><th>Time / task<sup>d</sup></th></tr>
+</thead>
+<tbody>
+<tr><td rowspan="3">Claude Code<br>Sonnet 5<br><i>(enforced)</i></td><td>Native</td><td>18/20</td><td>2</td><td>1/20</td><td>0</td><td>1.16</td><td>—</td><td>158 s</td></tr>
+<tr><td>Karpathy skill (prompt-only)<sup>e</sup></td><td>19/20</td><td>1</td><td>4/20</td><td>1</td><td>1.42</td><td>—</td><td>159 s</td></tr>
+<tr><td><b>Ours, fixed</b></td><td><b>20/20</b></td><td><b>0</b></td><td><b>13/20</b></td><td><b>0</b></td><td><b>1.00</b></td><td>62</td><td>170 s</td></tr>
+<tr><td rowspan="3">Codex<br>GPT-5.5<br><i>(voluntary)</i></td><td>Native</td><td>16/20</td><td>4</td><td>20/20<sup>f</sup></td><td>0</td><td>1.00</td><td>—</td><td>110 s</td></tr>
+<tr><td>Karpathy skill (prompt-only)</td><td>16/20</td><td>4</td><td>20/20<sup>f</sup></td><td>0</td><td>1.00</td><td>—</td><td>97 s</td></tr>
+<tr><td><b>Ours, fixed</b></td><td><b>17/20</b></td><td><b>3</b></td><td>20/20<sup>f</sup></td><td>0</td><td>1.00</td><td>55</td><td>160 s</td></tr>
+</tbody>
+</table>
 
-¹ Final message claims completion (blinded judge, hand-audited 20/20) and the task is not resolved.
-² A test command with an unmasked exit 0 after the last edit (`| tail`-masked runs excluded).
-³ Non-test files changed that the gold patch does not touch; changed non-test lines ÷ gold lines; medians.
-⁴ Median agent wall time; ours vs native on Sonnet: +18 % total recorded time, +35 % estimated CLI cost.
-⁵ The model never invoked the skill in any Sonnet run (0/20); this arm is native plus a skill listing.
-⁶ Codex ran tests unpiped in every run; the verification column does not discriminate on Codex.
+<details><summary>Notes to Table 1</summary>
+<p><sup>a</sup> Final message claims completion (blinded judge, hand-audited 20/20) and the task is not resolved.
+<sup>b</sup> A test command with an unmasked exit 0 after the last edit (<code>| tail</code>-masked runs excluded).
+<sup>c</sup> Non-test files changed that the gold patch does not touch; changed non-test lines ÷ gold lines.
+<sup>d</sup> Median agent wall time. Ours vs native on Sonnet: +18 % total recorded time, +35 % estimated CLI cost.
+<sup>e</sup> The model never invoked the skill in any Sonnet run (0/20): this arm is native plus a skill listing.
+<sup>f</sup> Codex ran its tests unpiped in every run; the verification column does not discriminate on Codex.</p>
+</details>
 
-**Table 2 — Version history of ours (not an ablation; see §Ablation design). Same setting as Table 1.**
+<p><b>Table 2 — Version history of ours</b> (not an ablation; see the ablation design below). Same setting as Table 1.</p>
 
-| Harness / model | Version | What changed | Resolved | False "done" | Verified | Push-backs / Jev calls | Runs ending blocked | Time / task |
-|---|---|---|---:|---:|---:|---:|---:|---:|
-| Claude Code / Sonnet 5 | ours, initial | diff baseline failed silently; exit codes masked by pipes | 19/20 | 1 | n/a⁷ | 1 / 39 | 0 | 192 s |
-| Claude Code / Sonnet 5 | **ours, fixed** | safe baseline, Py3.6, docs label, reproduction rule, 2 judged rounds | **20/20** | 0 | 13/20 | 32 / 62 | 10 | 170 s |
-| Claude Code / Sonnet 5 | ours, fixed + pipefail | + Bash pipefail hook, output-summary reading | 18/20 | 2 | **17/20** | 30 / 59 | 11 | 183 s |
-| Codex / GPT-5.5 | ours, fixed | voluntary routing | 17/20 | 3 | 20/20⁶ | 13 / 55 | 1 | 160 s |
-| Codex / GPT-5.5 | ours, fixed + pipefail | voluntary routing | 14/20 | 6 | 20/20⁶ | 10 / 43 | 1 | 134 s |
+<table>
+<thead>
+<tr><th rowspan="2">Harness / model</th><th rowspan="2">Version</th><th rowspan="2">What changed</th><th colspan="2">Outcome</th><th rowspan="2">Verified</th><th colspan="2">Router activity</th><th rowspan="2">Time / task</th></tr>
+<tr><th>Resolved</th><th>False "done"</th><th>Push-backs / Jev calls</th><th>Runs ending blocked</th></tr>
+</thead>
+<tbody>
+<tr><td rowspan="3">Claude Code<br>Sonnet 5</td><td>initial</td><td>diff baseline failed silently; exit codes masked by pipes</td><td>19/20</td><td>1</td><td>n/a<sup>g</sup></td><td>1 / 39</td><td>0</td><td>192 s</td></tr>
+<tr><td><b>fixed</b></td><td>safe baseline, Python 3.6, docs label, reproduction rule, two judged rounds</td><td><b>20/20</b></td><td>0</td><td>13/20</td><td>32 / 62</td><td>10</td><td>170 s</td></tr>
+<tr><td>fixed + pipefail</td><td>+ Bash pipefail hook, output-summary reading</td><td>18/20</td><td>2</td><td><b>17/20</b></td><td>30 / 59</td><td>11</td><td>183 s</td></tr>
+<tr><td rowspan="2">Codex<br>GPT-5.5</td><td>fixed</td><td>voluntary routing</td><td>17/20</td><td>3</td><td>20/20<sup>f</sup></td><td>13 / 55</td><td>1</td><td>160 s</td></tr>
+<tr><td>fixed + pipefail</td><td>voluntary routing</td><td>14/20</td><td>6</td><td>20/20<sup>f</sup></td><td>10 / 43</td><td>1</td><td>134 s</td></tr>
+</tbody>
+</table>
 
-⁷ The initial version's environment could not run `git stash` and its verification column counted masked runs; superseded.
+<p><sup>g</sup> The initial version's environment could not run <code>git stash</code> and its verification column counted masked runs; superseded.</p>
 
-**Table 3 — Adoption analysis of voluntary skills. Sonnet 5 and GPT-5.5; the condition changes.**
-*Opened* = the model loaded the skill; *router* = runs with at least one live Jev request.
+<p><b>Table 3 — Adoption of voluntary skills.</b> Same tasks; the <i>condition</i> changes. <i>Opened</i> = the model loaded the skill; <i>Router</i> = runs with at least one live Jev request.</p>
 
-| Harness / model | Condition | Method | Opened | Router (runs) | Live Jev calls | Resolved | Time / task |
-|---|---|---|---:|---:|---:|---:|---:|
-| Claude Code / Sonnet 5 | as delivered | prompt-only Karpathy skill | 0/20 | — | — | 19/20 | 159 s |
-| Claude Code / Sonnet 5 | as delivered | external stage-router skill A / B / phase-router skill C¹² | 0 / 0 / 0 | 0 | 0 | 18 / 18 / 19 | 204–222 s |
-| Claude Code / Sonnet 5 | description names the task⁸ | external A / B / C | 16 / 17 / 15 | 0 | 0 | 18 / 18 / 19 | 131–136 s |
-| Claude Code / Sonnet 5 | router required by prompt⁹ | external C | 20/20 | 20/20 | 55 | 17/20 | 381 s |
-| Claude Code / Sonnet 5 | as delivered | external later bundle D¹² | 15/20 | 0 | 0 | 17/20 | n/a |
-| Claude Code / Sonnet 5 | **hooks (ours)** | **Ours, fixed** | n/a¹⁰ | **20/20** | 62 | **20/20** | 170 s |
-| Codex / GPT-5.5 | as delivered | external A / B / C | 3 / 6 / 20 | 0 / 1 / 0 | 0 / 1 / 0 | 16 / 16 / 15 | 170–230 s |
-| Codex / GPT-5.5 | skill named in prompt⁹ | external A / B / C | 20 / 20 / 20 | 19 / 20 / 9 | 70 / 80 / 37 | 15 / 16 / 15 | 276–347 s |
-| Codex / GPT-5.5 | as delivered | external later bundle D | 20/20 | 0 | 0 | 15/20 | n/a |
-| Codex / GPT-5.5 | **voluntary (ours)** | **Ours, fixed** | 20/20 | 20/20 | 55 | **17/20** | 160 s |
+<table>
+<thead>
+<tr><th rowspan="2">Harness / model</th><th rowspan="2">Condition</th><th rowspan="2">Method</th><th colspan="3">Adoption (of 20 runs)</th><th rowspan="2">Resolved</th><th rowspan="2">Time / task</th></tr>
+<tr><th>Opened</th><th>Router</th><th>Live Jev calls</th></tr>
+</thead>
+<tbody>
+<tr><td rowspan="10">Claude Code<br>Sonnet 5</td><td rowspan="5">as delivered</td><td>Karpathy skill (prompt-only)</td><td>0</td><td>—</td><td>—</td><td>19/20</td><td>159 s</td></tr>
+<tr><td>A</td><td>0</td><td>0</td><td>0</td><td>18/20</td><td>204 s</td></tr>
+<tr><td>B</td><td>0</td><td>0</td><td>0</td><td>18/20</td><td>222 s</td></tr>
+<tr><td>C</td><td>0</td><td>0</td><td>0</td><td>19/20</td><td>219 s</td></tr>
+<tr><td>D</td><td>15</td><td>0</td><td>0</td><td>17/20</td><td>n/a</td></tr>
+<tr><td rowspan="3">description names the task<sup>h</sup></td><td>A</td><td>16</td><td>0</td><td>0</td><td>18/20</td><td>136 s</td></tr>
+<tr><td>B</td><td>17</td><td>0</td><td>0</td><td>18/20</td><td>133 s</td></tr>
+<tr><td>C</td><td>15</td><td>0</td><td>0</td><td>19/20</td><td>131 s</td></tr>
+<tr><td>router required by prompt<sup>i</sup></td><td>C</td><td>20</td><td>20</td><td>55</td><td>17/20</td><td>381 s</td></tr>
+<tr><td><b>enforced by hooks</b></td><td><b>Ours, fixed</b></td><td>n/a<sup>j</sup></td><td><b>20</b></td><td><b>62</b></td><td><b>20/20</b></td><td>170 s</td></tr>
+<tr><td rowspan="8">Codex<br>GPT-5.5</td><td rowspan="4">as delivered</td><td>A</td><td>3</td><td>0</td><td>0</td><td>16/20</td><td>170 s</td></tr>
+<tr><td>B</td><td>6</td><td>1</td><td>1</td><td>16/20</td><td>181 s</td></tr>
+<tr><td>C</td><td>20</td><td>0</td><td>0</td><td>15/20</td><td>230 s</td></tr>
+<tr><td>D</td><td>20</td><td>0</td><td>0</td><td>15/20</td><td>n/a</td></tr>
+<tr><td rowspan="3">skill named in prompt<sup>i</sup></td><td>A</td><td>20</td><td>19</td><td>70</td><td>15/20</td><td>300 s</td></tr>
+<tr><td>B</td><td>20</td><td>20</td><td>80</td><td>16/20</td><td>347 s</td></tr>
+<tr><td>C</td><td>20</td><td>9</td><td>37</td><td>15/20</td><td>276 s</td></tr>
+<tr><td><b>voluntary</b></td><td><b>Ours, fixed</b></td><td>20</td><td><b>20</b></td><td><b>55</b></td><td><b>17/20</b></td><td>160 s</td></tr>
+</tbody>
+</table>
 
-⁸ One-line change to the skill's `description` (fair arm, same prompt). ⁹ Prompt differs from the
-other arms: a separate condition, not comparable to Table 1 baselines. ¹⁰ Hooks run regardless of
-whether the model opens the skill text. ¹² A, B: `karpathy-jev-guidelines` v1/v2, a voluntary skill whose
-router runs pre/clarify/select/post stages on an agent-written state file and rejects non-ASCII requests;
-C: its v3, a phase router (think/design/criteria/diff/finish); D: a later voluntary bundle (`v005`), and
-D′ its revision that makes Jev consultation mandatory before the first edit and at verification (`v005.1`).
+<details><summary>Notes to Table 3</summary>
+<p><sup>h</sup> One-line change to the skill's <code>description</code> (a fair arm; same prompt).
+<sup>i</sup> The prompt differs from the other arms: a separate condition, not comparable to the Table 1 baselines.
+<sup>j</sup> Hooks run regardless of whether the model opens the skill text.</p>
+</details>
 
 **Table 4 — Replication with an open-weight model. SWE-bench Verified, Claude Code / Qwen3.8-27B-FP8, n = 20.**
 
