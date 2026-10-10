@@ -2,23 +2,26 @@
 
 ## Next Evaluation: Overview
 
-**Status: proposed, not run.** This plan expands the evaluation of this repository's `karpathy-jev`
-plugin. It does not launch jobs, change frozen earlier conditions, or mark historical audits complete.
+**Status: preparation authorized through readiness gates (2026-10-09); scored runs not started.**
+The user authorized three independent cells in Docker, execution to the **10% checkpoint only**,
+and reviewer acceptance of readiness gates before scoring. This campaign does not change frozen
+earlier conditions or mark historical audits complete.
 
 The [repository memo](../MEMO.md) records the planning, checkpoint reuse, software-hash, PR, and release
 rules for this campaign.
 
 | Question | Planned comparison |
 |---|---|
-| Does the skill help across agent harnesses? | Claude Code and Pi; Codex as an optional separate replication |
-| Does it help across models? | A pinned Qwen deployment and a pinned DeepSeek model, used in both core harnesses |
+| Does the skill help in the selected configurations? | Three separate cells: Claude Code/Sonnet 5, Codex/GPT-5.5, Pi/local Qwen |
+| Can this design isolate harness or model effects? | No: harness and model are coupled; report each cell separately |
 | Does it generalize beyond repository bug fixes? | Two core benchmarks: SWE-bench Verified and Terminal-Bench 2.0 |
 | Does it generalize across programming languages? | Optional third benchmark: SWE-bench Multilingual |
 | Is the sample large enough to estimate an effect? | Nested 10%, 20%, and 30% samples; three fresh attempts per task and condition |
 
-**Harness and model are separate factors.** Pi is an agent harness. DeepSeek is a model/provider in
-this plan. If a particular DeepSeek-based agent CLI is intended, identify and pin it as an additional
-harness before freezing the matrix.
+**Amendment to the earlier proposal:** the user selected three fixed harness/model cells instead
+of 2 harnesses × 2 model backends. DeepSeek is dropped because it is outside the authorized matrix,
+not because of observed scores. Codex is included as a voluntary condition, not an optional
+replication. This coupled design cannot isolate harness effects from model effects.
 
 [Harnesses and models](#harnesses-and-models) · [Benchmarks and sample sizes](#benchmarks-and-sample-sizes)
 · [Run budget](#run-budget) · [Execution and reporting](#execution-and-reporting)
@@ -26,40 +29,40 @@ harness before freezing the matrix.
 
 ## Harnesses and Models
 
-### Core Harnesses
+### Authorized Cells
 
-| Harness | Planned Jev integration | Readiness requirement |
-|---|---|---|
-| **Claude Code** | The bundled plugin and hooks | Confirm first-edit and finish checks run in an isolated container |
-| **Pi** | A new extension calling the same Python router | Implement and verify equivalent request, edit, command, and finish boundaries |
-| **Codex, optional** | Explicit router calls, or a separately validated adapter | Report voluntary use separately; do not equate it with enforced checks |
+| Cell | Harness / model | Planned Jev integration | Readiness requirement |
+|---|---|---|---|
+| **C1** | Claude Code / `claude-sonnet-5` | Bundled plugin + hooks: **enforced** | Pin CLI; verify first-edit and finish checks in Docker |
+| **C2** | Codex CLI / GPT-5.5 | Explicit router calls: **voluntary** | Pin CLI and actual seat-served model; report adoption separately |
+| **C3** | Pi / local `Qwen3.8-27B-FP8` | New extension calling the same `router.py` | Pin Pi; verify turn start, first edit, pipefail and finish boundaries |
+
+If the Codex seat serves a different pinned GPT model, record its actual identity before freezing.
+All three cells use fresh Docker environments; voluntary calls are not equivalent to enforced hooks.
 
 Pi supports lifecycle and tool extensions; its documented `agent_before_settle` event is an actionable
-finish boundary. This is an integration candidate, **not an implemented adapter**. Validate continuation
-limits and tool ordering against the pinned Pi version before using it in scored runs.
+finish boundary. The candidate `extensions/karpathy-jev.ts` is implemented and has passed six offline
+tests plus an unscored Docker/Qwen/live-Jev continuation smoke (2026-10-09). This establishes bounded
+adapter readiness, not scored effectiveness or final launch acceptance.
 See [Pi's extension documentation](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md).
 
 ### Model Backends
 
 | Backend | Purpose | What to freeze |
 |---|---|---|
-| **Qwen** | Continue the open-weight model comparison | Exact weights/revision, quantization, serving image, context limit, decoding settings, and capacity |
-| **DeepSeek** | Add a second model family | Exact API model ID, returned model/version, reasoning mode, context limit, decoding settings, and API compatibility |
+| **Sonnet 5** | C1 hosted solver | Requested and returned model identity, context/decoding settings, provider-version uncertainty |
+| **GPT-5.5** | C2 hosted solver | Actual seat-served identity, reasoning/decoding settings, provider-version uncertainty |
+| **Qwen3.8-27B-FP8** | C3 local solver | Exact weights/revision, quantization, serving image, context limit, decoding settings, and capacity |
 
-DeepSeek publishes model APIs; select an available model at launch rather than assuming a historical
-alias is immutable. Record any provider-side version uncertainty. See the
-[DeepSeek API documentation](https://api-docs.deepseek.com/api/create-response/).
-
-The intended core matrix is **2 harnesses × 2 model backends**. Every cell must pass a tool-call,
-streaming, transcript, and budget smoke test. Any compatibility bridge must have its source hash and
-argument/tool mapping recorded. An unsupported cell remains explicitly unrun; do not silently replace
-its model. Use the same backend and inference settings across harnesses when estimating a harness
-effect, and the same harness when estimating a model effect.
+Every cell must pass tool-call, streaming, transcript and budget smoke tests. Compatibility bridges
+need source hashes and recorded argument/tool mappings. An unsupported cell remains explicitly
+unrun; do not silently replace its model. Match the backend/settings across methods within each cell.
+Hosted-model aliases do not pin remote weights.
 
 ## Benchmarks and Sample Sizes
 
-Use **two benchmarks by default**, with a third only if the language-generalization question and budget
-justify it. Decide whether to include the third before examining scored outcomes.
+Use **two benchmarks for this authorized campaign**: SWE-bench Verified and Terminal-Bench 2.0.
+Multilingual is an optional future extension, not included in the authorized budget.
 
 | Benchmark | Role | Published release size | 10% | 20% | 30% |
 |---|---|---:|---:|---:|---:|
@@ -101,10 +104,11 @@ All n30 tasks are the final 30% sample.
 5. Use identical task IDs across methods and compatible harness/model cells. Keep adapter smoke
    tasks outside every scored subset.
 
-The final target is **30% per selected benchmark**. The 10% and 20% checkpoints are cumulative progress
-reports. Do not choose the stopping fraction after seeing which checkpoint looks best. If the run stops
-early for resource reasons, report the achieved fraction and missing cells as an incomplete campaign.
-Previously completed attempts are not rerun when extending a checkpoint.
+The authorized execution target is **10% per core benchmark**. Freeze the nested 10/20/30% order now,
+but **stop after 10% and report**. Extensions to 20% and 30% require separate user authorization;
+the stopping rule is fixed before outcomes, not chosen according to which checkpoint looks best.
+If the 10% campaign is incomplete, disclose missing attempts/cells. Accepted attempts are not rerun
+when an extension is authorized.
 
 Reuse each accepted task/method/harness/model/repeat attempt only when its frozen condition and
 artifact hashes match. The 20% checkpoint adds only tasks outside the 10% subset; the 30% checkpoint
@@ -178,21 +182,49 @@ of ambiguous requests; it is not a fourth benchmark or part of the published ben
 
 ## Run Budget
 
-For the full core matrix, there are four compatible harness/model cells:
+For the authorized matrix, there are three fixed harness/model cells:
 
 ```text
-main attempts = sampled tasks × 4 cells × 3 methods × 3 repeats
-              = sampled tasks × 36
+attempts per cell = sampled tasks × 3 methods × 3 repeats
+main attempts    = sampled tasks × 3 cells × 3 methods × 3 repeats
+                 = sampled tasks × 27
 ```
 
-| Cumulative checkpoint | Two core benchmarks | With optional third benchmark |
-|---|---:|---:|
-| 10% | 2,124 attempts | 3,204 attempts |
-| 20% | 4,248 attempts | 6,408 attempts |
-| 30% | 6,372 attempts | 9,612 attempts |
+| Cumulative checkpoint | Core tasks | Attempts per cell | All three cells | Authorization |
+|---|---:|---:|---:|---|
+| 10% | 50 + 9 = 59 | 531 | **1,593** | After reviewer accepts gates |
+| 20% | 100 + 18 = 118 | 1,062 | 3,186 | Separate go-ahead required |
+| 30% | 150 + 27 = 177 | 1,593 | 4,779 | Separate go-ahead required |
 
-These totals are cumulative, not additive. They exclude smoke tests, ablations, optional Codex cells,
-and diagnostic grading. Recompute the totals for the actual compatible matrix before launch.
+These totals are cumulative, not additive. They exclude smoke tests, ablations and diagnostic grading.
+DeepSeek and Multilingual are not included. Extensions reuse accepted attempts under the identical
+frozen condition; they do not regenerate the 10% attempts.
+
+### Parallel Execution and Credential Isolation
+
+After gate acceptance, use one independent producer per cell, interleaved randomized method order
+within task/repeat blocks, and grading overlapping solving. Initial caps: C1 **6**, C2 **6**, C3
+**at most 12 total in-flight Qwen requests** across `10.193.104.97:18001` and `:18002` (eight running
+requests each). These replicas are shared: check load and leave headroom. Do not restart or
+reconfigure the Qwen containers or nginx. Increase caps only if no rate-limit/429 errors are observed
+and record the decision. Queue time stays outside solve budgets; technical waits are not retries.
+
+- Never mount host `~/.claude`, `~/.codex`, `~/.pi`, `~/.karpathy-jev` or credential files into Docker,
+  even read-only. Never write or restore host credential files.
+- Never supply a usable container refresh token. Per the reviewer-verified 2026-10-09 addendum,
+  re-snapshot per attempt: keep every Claude `claudeAiOauth` field except `refreshToken`; keep Codex
+  `tokens.refresh_token` as the empty string and set `last_refresh` to the snapshot time. Metadata is
+  required for CLI login parsing; empty refresh fields cannot rotate the real token. Smoke-test these
+  access-only copies and check both guest and host credential-file hashes.
+  A user-provided mode-600 Claude setup token is an alternative; request it through the reviewer,
+  never run setup-token autonomously.
+- Requeue attempts if token expiry is within the solve budget + ten minutes. Before the first Codex
+  snapshot, perform the authorized trivial host `codex exec` refresh check. Only the host may refresh.
+- Pass secrets via env files or stdin, not command-line arguments. Only Jev-arm containers get the
+  Jev key. Scan exported artifacts for the key and both seat tokens before display or archival.
+- Record host credential SHA256s before launch and every status update, never contents. Report hash
+  changes as external refreshes. If a host CLI stops working, stop all campaign producers and report
+  immediately to the reviewer.
 
 Measure smoke-run setup, solve, queue, grading, token usage, and judge calls to estimate the campaign
 cost. Freeze CPU/RAM/GPU assignments, per-endpoint concurrency, and queue policy. Queue time stays
@@ -202,6 +234,51 @@ guarantee statistical power; preregister a minimum effect and power calculation 
 
 ## Execution and Reporting
 
+### Readiness evidence as of 2026-10-09
+
+- Reviewer-corrected access-only Docker authentication passes for C1/C2. Claude keeps all OAuth
+  metadata except `refreshToken`; Codex retains an empty `refresh_token` and current `last_refresh`.
+  Both guest credential hashes and both host hashes remained unchanged during the authentication gates.
+- Nine synthetic cell/method smokes completed normally and passed the unchanged fixture test.
+  Original and Jev skill reads were observed; each Jev arm received first-edit and finish replies,
+  with no live replies observed in native/original arms. These smokes do not estimate benchmark accuracy.
+- Common final-diff capture replays staged, worktree, untracked, ignored and binary changes. Keep raw
+  capture separate from the still-to-be-frozen production-scope/grading projection.
+- Passive exit collection preserves status: C1 uses `CLAUDE_CODE_SHELL_PREFIX` (the pinned CLI passes
+  one wrapped Bash command string); C2/C3 use `BASH_ENV`. Native probes observed exits 1/0/1 for
+  `false`, `false | cat`, and explicit pipefail. Install the same cell-specific collector in every method;
+  it must not itself enable pipefail. Missing receipts are unknown, not successful verification.
+- Unavailable-judge handling was checked in the shared router: `unchecked`, fail-open exit 0, no
+  successful judgment. Existing Pi smoke separately establishes `revise` continuation and its limit.
+- SWE positive/negative controls: 25 required passes versus four expected failures and 21 passes.
+  The scoped Docker adapter drops the installed grader's `SYS_ADMIN`, uses 2 CPUs/8 GiB and no host
+  mounts, without modifying gold/test patches or grader scripts. Terminal oracle/nop controls: three
+  required passes/reward 1 versus three failures/reward 0. These are common grader controls, not
+  generated solver scores or claims of an unmodified official scaffold.
+- Full local evidence: `../../eval_min/campaign/gates/technical_root_acceptance_v1.json` and
+  `../../eval_min/campaign/gates/GATE_INDEX.md`. The user subsequently authorized blind Claude
+  reviewer calibration labels, explicitly **AI-made, not human**. Labels and receipt froze at
+  2026-10-10 07:38:44 UTC. One pinned Jev 1.13.0 completion-judge call passed the frozen gate:
+  21/23 agreement (91.3%), true recall 17/19 (89.5%), false recall 4/4 (100%). Two disagreements
+  retained; no tuning or rerun. This is AI agreement, not human validation or task correctness.
+- Reviewer accepted the technical gates on 2026-10-10. Prelaunch contract/evidence paths:
+  `../../eval_min/campaign/launch_policy_v1.json`, `solver_prompts_v1/`, `model_identity_v1.json`,
+  and `runtime_inventory_v2/`/`runtime_inventory_v3/` under that campaign directory. CLI runtime
+  overlays supply pinned Node/GLIBC/private Python identically to all methods; benchmark Python is
+  not overridden. Interpreter-only bindings are separately hashed; core router decisions unchanged.
+  Named failed preparation variants remain preserved. Full sampled-image checks must complete
+  before `launch_manifest_v1.json` is sealed. No scored attempts launched; explicit step-5 approval
+  is still required after the manifest hash is submitted.
+- Fixed execution contract: SWE 3,000s/Terminal 900s solves; measured local admission waits excluded,
+  unobservable backend queue not fabricated/subtracted. C1/C2 six agents each; C3 initially four
+  per replica/eight total, below the twelve-request absolute cap, with shared-load guards. No
+  automatic post-start re-solves. Same rendered task prompt across methods/repeats in each cell.
+- Prospective analysis: task-clustered 10,000 bootstrap resamples and paired sign-flip tests; Holm
+  family of six Jev/native comparisons (three cells × two benchmarks), secondary comparisons
+  exploratory. Fixed 10% stopping regardless of outcomes. Conservative normal power sensitivity
+  at task SD=1 implies 80% MDE about 49.2pp for 50 tasks, >100pp for nine; no promised power for
+  the 10pp minimum effect of interest. Full assumptions/code are frozen in the local policy.
+
 ### Before Scoring
 
 1. Pin dataset revisions, grader versions, image digests, model identities, harness/adapter sources,
@@ -209,11 +286,19 @@ guarantee statistical power; preregister a minimum effect and power calculation 
 2. In isolated containers, verify skill separation, real judge calls, edit/finish boundaries, pipeline
    exit capture, revision limits, unavailable-judge handling, and the full final diff including staged
    and untracked changes. Run positive and negative grader controls on unscored smoke tasks.
-3. Keep judge calibration separate from scoring. Freeze its rubric, manual per-ID labels, response
-   model, and acceptance criterion before inspecting calibration predictions. Missing records are
-   not counted as successful calibration. Freeze thresholds after this gate.
-4. Label completion claims using messages with task/arm/reward mappings hidden. Freeze human
-   calibration receipts and final labels before reward review; disclose any prior identity exposure.
+3. Keep judge calibration separate from scoring. Freeze its rubric, message IDs, response model
+   and acceptance criterion before labeling/predictions. Under the user's second brief addendum,
+   Claude (the reviewer) labels blind: these are **AI-made labels, not human labels**, a declared
+   deviation from the original human-calibration requirement. Freeze the reviewer labels and a UTC,
+   sheet-SHA256/labels-SHA256 receipt before inspecting any completion-judge predictions for those IDs.
+   Missing records or insufficient label-class support are not successful calibration. Do not tune
+   thresholds on this set and call the same-set agreement independent validation.
+4. Label completion claims using messages with task/arm/reward mappings hidden. Freeze calibration
+   receipts and final labels before reward review; disclose labeler/model and prior identity exposure.
+   All reports and the final manifest must disclose the AI-label deviation; AI agreement does not
+   establish human agreement or task correctness. The frozen 23-message local sheet and protocol are
+   `../../eval_min/campaign/calibration/sheet.md` and `manifest.json` in that directory. Source mappings
+   are withheld from the reviewer; text/style and previous aggregate progress limit perfect blinding.
 
 ### Metrics
 
@@ -251,6 +336,12 @@ local exposure but does not prove that public benchmark tasks were absent from m
 - Preserve manifests, source snapshots, complete tool transcripts, final patches, judge requests and
   responses, raw grading logs, actual exit receipts, blinded labels, audit rows, and reproducible reports.
   Scan exported artifacts for configured secrets and archive only sanitized evidence.
+- Update `eval_min/campaign/STATUS.md` after each preparation step, recording the plan PR URL,
+  manifest hash, adapter smoke evidence and one evidence file per gate. **Stop for reviewer acceptance
+  after step 4; do not launch scored producers beforehand.** During scoring report at each 25% of
+  the 1,593 scheduled attempts: per-cell progress, errors, credential-hash changes and ETA.
+  Deliver `eval_min/campaign/report_10pct.md`; README/plan changes go by PR against
+  `reliable-era/andrej-karpathy-skills-jev`, never directly to `main` or to `multica-ai/*`.
 - Finish with an explicit completeness table and owned-resource cleanup receipts. Do not restart or
   repurpose existing benchmark/model services as part of this planning change.
 
