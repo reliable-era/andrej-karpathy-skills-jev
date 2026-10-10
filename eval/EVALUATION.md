@@ -256,7 +256,8 @@ guarantee statistical power; preregister a minimum effect and power calculation 
   required passes/reward 1 versus three failures/reward 0. These are common grader controls, not
   generated solver scores or claims of an unmodified official scaffold.
 - Full local evidence: `../../eval_min/campaign/gates/technical_root_acceptance_v1.json` and
-  `../../eval_min/campaign/gates/GATE_INDEX.md`. Human calibration remains pending reviewer/user.
+  `../../eval_min/campaign/gates/GATE_INDEX.md`. The user subsequently authorized blind Claude
+  reviewer calibration labels, explicitly **AI-made, not human**; receipt remains pending.
   The full launch manifest is not sealed; synthetic tooling smokes do not establish compatibility of
   all sampled task images. No scored attempts have launched. Reviewer acceptance is still required.
 
@@ -267,11 +268,19 @@ guarantee statistical power; preregister a minimum effect and power calculation 
 2. In isolated containers, verify skill separation, real judge calls, edit/finish boundaries, pipeline
    exit capture, revision limits, unavailable-judge handling, and the full final diff including staged
    and untracked changes. Run positive and negative grader controls on unscored smoke tasks.
-3. Keep judge calibration separate from scoring. Freeze its rubric, manual per-ID labels, response
-   model, and acceptance criterion before inspecting calibration predictions. Missing records are
-   not counted as successful calibration. Freeze thresholds after this gate.
-4. Label completion claims using messages with task/arm/reward mappings hidden. Freeze human
-   calibration receipts and final labels before reward review; disclose any prior identity exposure.
+3. Keep judge calibration separate from scoring. Freeze its rubric, message IDs, response model
+   and acceptance criterion before labeling/predictions. Under the user's second brief addendum,
+   Claude (the reviewer) labels blind: these are **AI-made labels, not human labels**, a declared
+   deviation from the original human-calibration requirement. Freeze the reviewer labels and a UTC,
+   sheet-SHA256/labels-SHA256 receipt before inspecting any completion-judge predictions for those IDs.
+   Missing records or insufficient label-class support are not successful calibration. Do not tune
+   thresholds on this set and call the same-set agreement independent validation.
+4. Label completion claims using messages with task/arm/reward mappings hidden. Freeze calibration
+   receipts and final labels before reward review; disclose labeler/model and prior identity exposure.
+   All reports and the final manifest must disclose the AI-label deviation; AI agreement does not
+   establish human agreement or task correctness. The frozen 23-message local sheet and protocol are
+   `../../eval_min/campaign/calibration/sheet.md` and `manifest.json` in that directory. Source mappings
+   are withheld from the reviewer; text/style and previous aggregate progress limit perfect blinding.
 
 ### Metrics
 
