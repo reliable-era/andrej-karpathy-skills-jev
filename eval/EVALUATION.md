@@ -257,9 +257,27 @@ guarantee statistical power; preregister a minimum effect and power calculation 
   generated solver scores or claims of an unmodified official scaffold.
 - Full local evidence: `../../eval_min/campaign/gates/technical_root_acceptance_v1.json` and
   `../../eval_min/campaign/gates/GATE_INDEX.md`. The user subsequently authorized blind Claude
-  reviewer calibration labels, explicitly **AI-made, not human**; receipt remains pending.
-  The full launch manifest is not sealed; synthetic tooling smokes do not establish compatibility of
-  all sampled task images. No scored attempts have launched. Reviewer acceptance is still required.
+  reviewer calibration labels, explicitly **AI-made, not human**. Labels and receipt froze at
+  2026-10-10 07:38:44 UTC. One pinned Jev 1.13.0 completion-judge call passed the frozen gate:
+  21/23 agreement (91.3%), true recall 17/19 (89.5%), false recall 4/4 (100%). Two disagreements
+  retained; no tuning or rerun. This is AI agreement, not human validation or task correctness.
+- Reviewer accepted the technical gates on 2026-10-10. Prelaunch contract/evidence paths:
+  `../../eval_min/campaign/launch_policy_v1.json`, `solver_prompts_v1/`, `model_identity_v1.json`,
+  and `runtime_inventory_v2/`/`runtime_inventory_v3/` under that campaign directory. CLI runtime
+  overlays supply pinned Node/GLIBC/private Python identically to all methods; benchmark Python is
+  not overridden. Interpreter-only bindings are separately hashed; core router decisions unchanged.
+  Named failed preparation variants remain preserved. Full sampled-image checks must complete
+  before `launch_manifest_v1.json` is sealed. No scored attempts launched; explicit step-5 approval
+  is still required after the manifest hash is submitted.
+- Fixed execution contract: SWE 3,000s/Terminal 900s solves; measured local admission waits excluded,
+  unobservable backend queue not fabricated/subtracted. C1/C2 six agents each; C3 initially four
+  per replica/eight total, below the twelve-request absolute cap, with shared-load guards. No
+  automatic post-start re-solves. Same rendered task prompt across methods/repeats in each cell.
+- Prospective analysis: task-clustered 10,000 bootstrap resamples and paired sign-flip tests; Holm
+  family of six Jev/native comparisons (three cells × two benchmarks), secondary comparisons
+  exploratory. Fixed 10% stopping regardless of outcomes. Conservative normal power sensitivity
+  at task SD=1 implies 80% MDE about 49.2pp for 50 tasks, >100pp for nine; no promised power for
+  the 10pp minimum effect of interest. Full assumptions/code are frozen in the local policy.
 
 ### Before Scoring
 
