@@ -259,11 +259,11 @@ Three terms matter:
 
 Hooks ran the Jev checks automatically.
 
-| Method | Resolved | Reported false “done” | Reported self-verified | Median time/task |
-|---|---:|---:|---:|---:|
-| Native | 18/20 | 2 | 1/20 | 158 s |
-| Karpathy skill | 19/20 | 1 | 4/20 | 159 s |
-| **karpathy-jev, fixed** | **20/20** | **0** | **13/20** | **170 s** |
+| Method | Resolved  | Reported self-verified | Median time/task |
+|---|---:|---:|---:|
+| Native | 18/20 | 1/20 | 158 s |
+| Karpathy skill | 19/20 | 4/20 | 159 s |
+| **karpathy-jev, fixed** | **20/20**  | **13/20** | **170 s** |
 
 The Jev version recorded 62 live calls. Median time was about **8% higher** than native; total recorded
 time was 18% higher and estimated CLI cost was 35% higher. These estimates exclude unknown all-in costs.
@@ -272,11 +272,11 @@ time was 18% higher and estimated CLI cost was 35% higher. These estimates exclu
 
 The agent called the router voluntarily.
 
-| Method | Resolved | Reported false “done” | Reported self-verified | Median time/task |
-|---|---:|---:|---:|---:|
-| Native | 16/20 | 4 | 20/20 | 110 s |
-| Karpathy skill | 16/20 | 4 | 20/20 | 97 s |
-| **karpathy-jev, fixed** | **17/20** | **3** | **20/20** | **160 s** |
+| Method | Resolved |  Reported self-verified | Median time/task |
+|---|---:|---:|---:|
+| Native | 16/20 | 20/20 | 110 s |
+| Karpathy skill | 16/20 |  20/20 | 97 s |
+| **karpathy-jev, fixed** | **17/20** |**20/20** | **160 s** |
 
 The Jev version recorded 55 live calls. Median time was about **45% higher** than native.
 
