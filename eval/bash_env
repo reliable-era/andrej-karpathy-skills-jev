@@ -1,0 +1,2 @@
+# Passive receipt only: keep the original status; do not enable pipefail.
+trap '_campaign_status=$?; /usr/bin/python3 /opt/campaign-tools/shell_exit.py "$_campaign_status" "$BASH_EXECUTION_STRING" 2>/dev/null; exit "$_campaign_status"' EXIT
