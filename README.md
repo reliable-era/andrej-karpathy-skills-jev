@@ -242,6 +242,27 @@ This configuration check does not make an API request.
 
 ## Results
 
+### Campaign in progress: 10% checkpoint (snapshot 2026-10-11 15:06 UTC)
+
+The planned three-harness campaign ([evaluation details](eval/EVALUATION.md)) is running in Docker
+with no host credential mounts: 59 tasks (50 SWE-bench Verified + 9 Terminal-Bench 2.0) × 3 methods ×
+3 attempts = 531 attempts per harness, 1,593 total. **No scores are reported yet:** final claims are
+labelled blind before rewards are inspected.
+
+| Harness | Finished | Infrastructure failures | Status |
+|---|---:|---:|---|
+| Claude Code / Sonnet 5, hooked | 516 | 15 | Complete (531/531, producer exit 0) |
+| Codex / GPT-5.5, prompted voluntary use | 526 | 5 | Complete (531/531, producer exit 0) |
+| Pi / local Qwen3.8-27B, extension | 406 | 17 | Running; 12 attempts in progress |
+
+Infrastructure failures are kept in the denominator and disclosed, not silently rerun. They include
+a Terminal-Bench task whose package install exceeds its official 15-minute budget, and Qwen setup
+timeouts on a saturated shared disk. Only failures proven to occur before the agent starts may be
+requeued once, under a hash-approved recovery. Mid-run corrections (checkout and collection windows,
+per-task Terminal-Bench budgets, CA bundle, and Qwen concurrency raised from 8 to at most 12
+with a cache-usage guard) are versioned, hash-approved, and will be reported separately
+(before/after the change).
+
 **The historical pilot reports more self-verification and higher cost. It does not establish an
 improvement in task success.**
 
