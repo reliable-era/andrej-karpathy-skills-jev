@@ -19,13 +19,13 @@ The plugin includes both the skill and the hooks that run these checks automatic
 | Hidden pipeline failures handled? | No added handling | No added handling | `pipefail` and result parsing |
 | External judge required? | No | No | TypeSafe API key |
 | Support outside Claude Code | Agent's own behaviour | Voluntary skill use | Explicit router calls |
-| Claude Code / Sonnet 5: tasks resolved | 18/20 | 19/20 | **20/20** |
-| Codex / GPT-5.5: tasks resolved | 16/20 | 16/20 | **17/20** |
+| Claude Code / Sonnet 5: SWE-bench Verified successes | 129/150 | 130/150 | **127/150** |
+| Codex / GPT-5.5: SWE-bench Verified successes | 121/150 | 118/150 | **117/150** |
+| Pi / Qwen3.8-27B: SWE-bench Verified successes | 99/150 | 97/150 | **92/150** |
 
-**Performance rows:** historical “fixed” version, SWE-bench Verified, 20 tasks per method, one attempt
-each. Sonnet 5 used Claude Code hooks; GPT-5.5 used voluntary calls in Codex. The small sample does not
-establish a reliable success gain, and claim calibration and strict-verification audits remain
-incomplete. See [Results](#results) for definitions and costs.
+**Performance rows:** 10% checkpoint campaign, 50 SWE-bench Verified tasks × 3 attempts per method.
+No difference is statistically significant, and karpathy-jev is not ahead in any harness.
+See [Results](#results) for Terminal-Bench, false “done” claims and caveats.
 
 These are differences in the added mechanism. A native agent can still ask questions, make a small
 patch, and run tests on its own.
@@ -242,6 +242,70 @@ This configuration check does not make an API request.
 
 ## Results
 
+### 10% checkpoint campaign (final, 2026-10-15)
+
+**karpathy-jev does not improve task success.** Across three harnesses it is within a few points of
+native and the original Karpathy skill, slightly lower on SWE-bench Verified, and no difference is
+statistically significant. It also does not reduce false “done” claims.
+
+Setup: 59 tasks (50 SWE-bench Verified + 9 Terminal-Bench 2.0) × 3 methods × 3 attempts = 531
+attempts per harness, run in Docker with no host credential mounts. **Success** means the hidden tests
+pass *and* the agent finished normally (a timed-out attempt is a failure even if its patch passes).
+
+| Harness | Benchmark | Native | Karpathy skill | **karpathy-jev** | karpathy-jev − native (95% CI) |
+|---|---|---:|---:|---:|---|
+| Claude Code / Sonnet 5 (hooks) | SWE-bench Verified | 129/150 | 130/150 | **127/150** | −1.3 pts (−4.7, +2.0) |
+| | Terminal-Bench 2.0 | 17/27 | 16/27 | **18/27** | +3.7 pts (−18.5, +33.3) |
+| Codex / GPT-5.5 (prompted, voluntary) | SWE-bench Verified | 121/150 | 118/150 | **117/150** | −2.7 pts (−8.0, +2.0) |
+| | Terminal-Bench 2.0 | 13/27 | 20/27 | **17/27** | +14.8 pts (+3.7, +25.9) |
+| Pi / Qwen3.8-27B (extension) | SWE-bench Verified | 99/150 | 97/150 | **92/150** | −4.7 pts (−12.7, +3.3) |
+| | Terminal-Bench 2.0 | 8/27 | 10/27 | **8/27** | 0 |
+| **All three harnesses** | | **387/531** | **391/531** | **379/531** | |
+| False “done” claims | | 82 | 78 | **84** | |
+
+Confidence intervals are task-cluster bootstrap over tasks; Holm-adjusted p-values are ≥ 0.75 for every
+contrast (the Terminal-Bench interval for Codex excludes zero but rests on 9 tasks). One Codex attempt
+with no captured patch stays ungraded.
+
+<details>
+<summary>Fourth harness: Claude Code driven by local Qwen (added after the main run)</summary>
+
+Same Claude Code version, prompts and hooks as the Sonnet run, model swapped for the same Qwen server
+as the Pi run.
+
+| Benchmark | Native | Karpathy skill | **karpathy-jev** |
+|---|---:|---:|---:|
+| SWE-bench Verified: success | 54/150 | 54/150 | **39/150** |
+| SWE-bench Verified: hidden tests pass (ignoring timeouts) | 102/150 | 104/150 | **96/150** |
+| SWE-bench Verified: agent timeouts | 91/150 | 94/150 | **109/150** |
+| Terminal-Bench 2.0: success | 4/27 | 6/27 | **4/27** |
+
+Generation on the shared GPUs was slow (often about a minute per step), so most attempts hit the
+50-minute limit after making a correct edit. karpathy-jev's extra checks cost more time here:
+−10.0 pts vs native on SWE-bench (−17.3, −3.3), Holm-adjusted p = 0.09. Treat this harness as
+time-budget-bound; it is not compared statistically with the others.
+</details>
+
+<details>
+<summary>How the numbers were checked, and what was not measured</summary>
+
+- **Grading repair:** submitted patches first included generated files (`__pycache__`,
+  `.pytest_cache`, `*.egg-info`) that broke grading. One rule applied to every method removed only
+  untracked generated or ignored files, and affected attempts were regraded once with the official
+  grader. Before this fix karpathy-jev on Codex looked 7.3 pts behind native. A grader crash after
+  writing its result was recovered from the official per-instance reports, and 12 attempts that
+  failed before the agent started were re-run once. Original grades are kept beside the repaired ones.
+- **Claims** were labelled before any test result was viewed.
+- **Not measured at scale:** automatic transcript checks agree with 72 hand reviews whenever they give
+  an answer, but they could not decide Jev use for 73% of attempts, self-testing for 95% and
+  upstream-fix retrieval for 100%. Hand reviews were done by an AI model, not a person.
+- **Infrastructure:** one Terminal-Bench task's package install exceeds its official 15-minute budget
+  in every harness; it is scored 0 and disclosed. Mid-run fixes were versioned and hash-approved.
+
+</details>
+
+### Historical 20-task pilot
+
 **The historical pilot reports more self-verification and higher cost. It does not establish an
 improvement in task success.**
 
@@ -255,7 +319,7 @@ Three terms matter:
 - **Self-verified:** the agent reportedly ran a passing test after its last edit.
 - **False “done”:** the final message claimed completion, but the task was unresolved.
 
-### Claude Code / Sonnet 5
+#### Claude Code / Sonnet 5
 
 Hooks ran the Jev checks automatically.
 
@@ -268,7 +332,7 @@ Hooks ran the Jev checks automatically.
 The Jev version recorded 62 live calls. Median time was about **8% higher** than native; total recorded
 time was 18% higher and estimated CLI cost was 35% higher. These estimates exclude unknown all-in costs.
 
-### Codex / GPT-5.5
+#### Codex / GPT-5.5
 
 The agent called the router voluntarily.
 
@@ -280,7 +344,7 @@ The agent called the router voluntarily.
 
 The Jev version recorded 55 live calls. Median time was about **45% higher** than native.
 
-### What can we conclude?
+#### What can we conclude?
 
 - The observed success differences are small. Paired sign tests did not establish a reliable gain;
   this sample also does not establish that the skill cannot hurt performance.
