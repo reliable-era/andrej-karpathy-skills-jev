@@ -25,6 +25,8 @@ The plugin includes both the skill and the hooks that run these checks automatic
 
 **Performance rows:** 10% checkpoint campaign, 50 SWE-bench Verified tasks × 3 attempts per method.
 No difference is statistically significant, and karpathy-jev is not ahead in any harness.
+These v1 numbers are affected by a harness defect that disadvantaged karpathy-jev; see the
+warning under [Results](#results). A corrected rerun is being prepared.
 See [Results](#results) for Terminal-Bench, false “done” claims and caveats.
 
 These are differences in the added mechanism. A native agent can still ask questions, make a small
@@ -243,6 +245,23 @@ This configuration check does not make an API request.
 ## Results
 
 ### 10% checkpoint campaign (final, 2026-10-15)
+
+> [!WARNING]
+> **Known harness defect (found 2026-10-18); a corrected rerun is being prepared.** The campaign's
+> agent launcher leaked a private `PYTHONHOME` into every agent shell, in all harnesses and all three
+> methods. Until an agent worked around it, the task repository's own Python failed ("No module named
+> 'math'") and conda printed a traceback on every command; about 85–95% of attempts hit it. Official
+> grading was not affected.
+>
+> It hurt karpathy-jev more than the other methods. Its explicit `python3 router.py` calls crashed
+> under the leak, so in Codex 65 of 170 router-using karpathy-jev attempts never received a Jev
+> answer (Pi: 49 of 84). The Claude Code and Pi hooks call the router through the campaign
+> interpreter and still ran. Qwen server errors were rare: no HTTP 5xx.
+>
+> Treat the numbers below as provisional. They are kept unchanged as the historical v1 result. The
+> rerun clears `PYTHONHOME` before launching the agent and changes nothing else. It covers Claude
+> Code + Sonnet 5, Codex + GPT-5.6-sol (gpt-5.5 is no longer served to Codex on a ChatGPT account)
+> and Claude Code + Opus 5.5.
 
 **karpathy-jev does not improve task success.** Across three harnesses it is within a few points of
 native and the original Karpathy skill, slightly lower on SWE-bench Verified, and no difference is
